@@ -17,6 +17,8 @@ import (
 	//TODO: for tiled later
 	// "github.com/lafriks/go-tiled"
 
+	"musbah/multiplayer/common"
+
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 )
@@ -95,25 +97,30 @@ func run() {
 
 		window.Clear(colornames.Skyblue)
 
+		var pressedKeys []byte
 		changes := false
 		if window.Pressed(pixelgl.KeyUp) {
 			changes = true
 			y += tileSize * delta
+			pressedKeys = append(pressedKeys, key.Up)
 		}
 
 		if window.Pressed(pixelgl.KeyDown) {
 			changes = true
 			y -= tileSize * delta
+			pressedKeys = append(pressedKeys, key.Down)
 		}
 
 		if window.Pressed(pixelgl.KeyLeft) {
 			changes = true
 			x -= tileSize * delta
+			pressedKeys = append(pressedKeys, key.Left)
 		}
 
 		if window.Pressed(pixelgl.KeyRight) {
 			changes = true
 			x += tileSize * delta
+			pressedKeys = append(pressedKeys, key.Right)
 		}
 
 		matrix := pixel.IM.Moved(pixel.Vec{X: x, Y: y})
@@ -122,12 +129,13 @@ func run() {
 		case <-tick:
 			if changes {
 
-				value := []byte(fmt.Sprintf("%f , %f", x, y))
-				_, err := stream.Write(value)
+				_, err := stream.Write(pressedKeys)
 				if err != nil {
 					log.Error(err)
 					return
 				}
+
+				pressedKeys = nil
 
 				response := make([]byte, 100)
 				_, err = stream.Read(response)

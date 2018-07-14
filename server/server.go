@@ -1,15 +1,25 @@
 package main
 
 import (
-	"net"
 	"os"
+	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 
-	"github.com/xtaci/kcp-go"
+	"musbah/multiplayer/common"
+
 	"github.com/xtaci/smux"
 )
+
+type event struct {
+	stream   *smux.Stream
+	keyPress []byte
+}
+
+var eventQueueMutex sync.Mutex
+var eventQueue []event
 
 func main() {
 
@@ -23,78 +33,58 @@ func main() {
 
 	log.SetLevel(log.DebugLevel)
 
+	go mainGameLoop()
+
 	port := ":29902"
+	startListening(port)
+}
 
-	listener, err := kcp.Listen(port)
-	if err != nil {
-		log.Errorf("could not listen for packets, %s", err)
-		return
-	}
-	defer listener.Close()
+func mainGameLoop() {
 
-	log.Debugf("connection addr %s", listener.Addr())
+	//20 ticks per second
+	tick := time.Tick(50 * time.Millisecond)
 
 	for {
-
-		connection, err := listener.Accept()
-		if err != nil {
-			log.Errorf("could not accept connection, %s", err)
-			return
+		select {
+		case <-tick:
+			processEvents()
+		default:
 		}
-		defer connection.Close()
-
-		go initializeSmuxSession(connection)
 	}
 
 }
 
-func initializeSmuxSession(connection net.Conn) {
+func processEvents() {
 
-	session, err := smux.Server(connection, nil)
-	if err != nil {
-		log.Errorf("could not create a connection, %s", err)
-		return
-	}
-	defer session.Close()
+	eventQueueMutex.Lock()
+	queue := eventQueue
+	eventQueue = nil
+	eventQueueMutex.Unlock()
 
-	for {
+	for _, event := range queue {
 
-		stream, err := session.AcceptStream()
-		if err != nil {
+		var response string
 
-			if session.IsClosed() {
-				log.Printf("session closed")
-				return
+		for _, keyPress := range event.keyPress {
+			switch keyPress {
+			case key.Up:
+				response += " up"
+			case key.Down:
+				response += " down"
+			case key.Right:
+				response += " right"
+			case key.Left:
+				response += " left"
+			case 0:
+				break
+			default:
+				response += " none"
 			}
-
-			log.Errorf("could not accept stream, %s", err)
-			continue
-		}
-		defer stream.Close()
-
-		go handleStream(stream)
-
-	}
-
-}
-
-func handleStream(stream *smux.Stream) {
-
-	buf := make([]byte, 100)
-
-	for {
-		_, err := stream.Read(buf)
-		if err != nil {
-			log.Errorf("could not read stream, %s", err)
-			return
 		}
 
-		log.Debugf("read %s", buf)
-
-		_, err = stream.Write([]byte("yup"))
+		_, err := event.stream.Write([]byte(response))
 		if err != nil {
 			log.Errorf("could not write to stream %s", err)
 		}
 	}
-
 }
