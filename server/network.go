@@ -40,6 +40,7 @@ func initializeSmuxSession(connection net.Conn) {
 	}
 	defer session.Close()
 
+	player := loadPlayer()
 	for {
 
 		stream, err := session.AcceptStream()
@@ -55,13 +56,13 @@ func initializeSmuxSession(connection net.Conn) {
 		}
 		defer stream.Close()
 
-		go handleStream(stream)
+		go handleStream(stream, player)
 
 	}
 
 }
 
-func handleStream(stream *smux.Stream) {
+func handleStream(stream *smux.Stream, player *player) {
 
 	for {
 
@@ -77,6 +78,7 @@ func handleStream(stream *smux.Stream) {
 		event := event{
 			stream:   stream,
 			keyPress: buffer,
+			player:   player,
 		}
 
 		eventQueueMutex.Lock()

@@ -23,6 +23,10 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
+var window *pixelgl.Window
+var sprite *pixel.Sprite
+var batch *pixel.Batch
+
 func run() {
 
 	cfg := pixelgl.WindowConfig{
@@ -31,7 +35,8 @@ func run() {
 		VSync:  false,
 	}
 
-	window, err := pixelgl.NewWindow(cfg)
+	var err error
+	window, err = pixelgl.NewWindow(cfg)
 	if err != nil {
 		log.Errorf("could not create window, %s", err)
 		return
@@ -46,7 +51,7 @@ func run() {
 		return
 	}
 
-	batch := pixel.NewBatch(&pixel.TrianglesData{}, spriteSheet)
+	batch = pixel.NewBatch(&pixel.TrianglesData{}, spriteSheet)
 
 	var spriteFrames []pixel.Rect
 	for x := spriteSheet.Bounds().Min.X; x < spriteSheet.Bounds().Max.X; x += 32 {
@@ -55,7 +60,7 @@ func run() {
 		}
 	}
 
-	sprite := pixel.NewSprite(spriteSheet, spriteFrames[len(spriteFrames)-10])
+	sprite = pixel.NewSprite(spriteSheet, spriteFrames[len(spriteFrames)-10])
 
 	connection, err := kcp.Dial("localhost:29902")
 	if err != nil {
@@ -82,78 +87,54 @@ func run() {
 
 	frames := 0
 	second := time.Tick(time.Second)
+	ms := time.Tick(30 * time.Millisecond)
 
-	//20 ticks per second
-	tick := time.Tick(50 * time.Millisecond)
+	x := 0
+	y := 0
+	// last := time.Now()
 
-	x := 0.0
-	y := 0.0
-	last := time.Now()
-
-	tileSize := 100.0
+	//units to move per second (in this case 10 tiles per sec)
+	// speed := 500.0
+	// tileSize := 50.0
 	for !window.Closed() {
-		delta := time.Since(last).Seconds()
-		last = time.Now()
+		// delta := time.Since(last).Seconds()
+		// last = time.Now()
 
 		window.Clear(colornames.Skyblue)
 
 		var pressedKeys []byte
-		changes := false
-		if window.Pressed(pixelgl.KeyUp) {
-			changes = true
-			y += tileSize * delta
-			pressedKeys = append(pressedKeys, key.Up)
-		}
-
-		if window.Pressed(pixelgl.KeyDown) {
-			changes = true
-			y -= tileSize * delta
-			pressedKeys = append(pressedKeys, key.Down)
-		}
-
-		if window.Pressed(pixelgl.KeyLeft) {
-			changes = true
-			x -= tileSize * delta
-			pressedKeys = append(pressedKeys, key.Left)
-		}
-
-		if window.Pressed(pixelgl.KeyRight) {
-			changes = true
-			x += tileSize * delta
-			pressedKeys = append(pressedKeys, key.Right)
-		}
-
-		matrix := pixel.IM.Moved(pixel.Vec{X: x, Y: y})
-
 		select {
-		case <-tick:
-			if changes {
+		case <-ms:
+			if window.Pressed(pixelgl.KeyUp) {
+				y++
+				pressedKeys = append(pressedKeys, key.Up)
+			}
 
-				_, err := stream.Write(pressedKeys)
-				if err != nil {
-					log.Error(err)
-					return
-				}
+			if window.Pressed(pixelgl.KeyDown) {
+				y--
+				pressedKeys = append(pressedKeys, key.Down)
+			}
 
-				pressedKeys = nil
+			if window.Pressed(pixelgl.KeyLeft) {
+				x--
+				pressedKeys = append(pressedKeys, key.Left)
+			}
 
-				response := make([]byte, 100)
-				_, err = stream.Read(response)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-
-				log.Debugf("response is %s", response)
+			if window.Pressed(pixelgl.KeyRight) {
+				x++
+				pressedKeys = append(pressedKeys, key.Right)
 			}
 		default:
 		}
 
-		batch.Clear()
-		sprite.Draw(batch, matrix)
-		batch.Draw(window)
+		//TODO: use delta for movement, for now just testing things
+		// tilesPerSec := speed / tileSize * delta
 
-		window.Update()
+		if len(pressedKeys) != 0 {
+			go sendKeyPressAndCheckPosition(stream, pressedKeys, &x, &y)
+		}
+
+		drawPlayerPosition(x, y)
 
 		frames++
 		select {
@@ -166,6 +147,56 @@ func run() {
 
 	}
 
+}
+
+func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *int, y *int) {
+
+	log.Infof("send keys %v", pressedKeys)
+	_, err := stream.Write(pressedKeys)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	response := make([]byte, 100)
+	_, err = stream.Read(response)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	//TODO: change later, assuming 255 is max x and y for now
+	newX := int(response[1])
+	newY := int(response[3])
+
+	if response[0] == 0 {
+		newX = -newX
+	}
+
+	if response[2] == 0 {
+		newY = -newY
+	}
+
+	log.Debugf("response x is %d, y is %d", newX, newY)
+	log.Debugf("x is %d and y is %d", *x, *y)
+	if *x != newX || *y != newY {
+		log.Info("wrong player position, recalibrating")
+		*x = newX
+		*y = newY
+	}
+
+}
+
+func drawPlayerPosition(x int, y int) {
+
+	position := pixel.Vec{X: float64(x), Y: float64(y)}
+	matrix := pixel.IM.Moved(position)
+
+	batch.Clear()
+	sprite.Draw(batch, matrix)
+	batch.Draw(window)
+
+	window.Update()
 }
 
 func main() {

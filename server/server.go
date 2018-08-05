@@ -16,6 +16,7 @@ import (
 type event struct {
 	stream   *smux.Stream
 	keyPress []byte
+	player   *player
 }
 
 var eventQueueMutex sync.Mutex
@@ -63,26 +64,46 @@ func processEvents() {
 
 	for _, event := range queue {
 
-		var response string
-
 		for _, keyPress := range event.keyPress {
 			switch keyPress {
 			case key.Up:
-				response += " up"
+				event.player.y++
 			case key.Down:
-				response += " down"
+				event.player.y--
 			case key.Right:
-				response += " right"
+				event.player.x++
 			case key.Left:
-				response += " left"
+				event.player.x--
 			case 0:
 				break
 			default:
-				response += " none"
+
 			}
 		}
 
-		_, err := event.stream.Write([]byte(response))
+		//TODO: change later, but for now byte 0 is the sign of x and byte 2 is the sign of y
+		//and then byte 1 and 3 are the values of each
+		response := make([]byte, 4)
+
+		tempX := event.player.x
+		tempY := event.player.y
+
+		response[0] = 1
+		if event.player.x < 0 {
+			response[0] = 0
+			tempX = -tempX
+		}
+
+		response[2] = 1
+		if event.player.y < 0 {
+			response[2] = 0
+			tempY = -tempY
+		}
+
+		response[1] = byte(tempX)
+		response[3] = byte(tempY)
+
+		_, err := event.stream.Write(response)
 		if err != nil {
 			log.Errorf("could not write to stream %s", err)
 		}
