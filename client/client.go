@@ -166,7 +166,7 @@ func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *in
 		return
 	}
 
-	//TODO: change capacity depending on the server changes
+	//TODO: change range depending on the server's byte capacity
 	tempX := response[2:6]
 	tempY := response[6:10]
 	newX := int(binary.LittleEndian.Uint32(tempX))
