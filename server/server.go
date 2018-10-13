@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"os"
 	"sync"
 	"time"
@@ -81,9 +82,9 @@ func processEvents() {
 			}
 		}
 
-		//TODO: change later, but for now byte 0 is the sign of x and byte 2 is the sign of y
-		//and then byte 1 and 3 are the values of each
-		response := make([]byte, 4)
+		//byte 0 is the sign of x and byte 1 is the sign of y
+		//and then byte 2 and 3 are the values of each
+		response := make([]byte, 10)
 
 		tempX := event.player.x
 		tempY := event.player.y
@@ -94,14 +95,24 @@ func processEvents() {
 			tempX = -tempX
 		}
 
-		response[2] = 1
+		response[1] = 1
 		if event.player.y < 0 {
-			response[2] = 0
+			response[1] = 0
 			tempY = -tempY
 		}
 
-		response[1] = byte(tempX)
-		response[3] = byte(tempY)
+		//TODO: change capacity depending on max X and max Y
+		byteX := make([]byte, 4)
+		binary.LittleEndian.PutUint32(byteX, tempX)
+		for i := 2; i < len(byteX)+2; i++ {
+			response[i] = byteX[i-2]
+		}
+
+		byteY := make([]byte, 4)
+		binary.LittleEndian.PutUint32(byteY, tempY)
+		for i := len(byteX) + 2; i < len(byteX)+len(byteY)+2; i++ {
+			response[i] = byteY[i-len(byteY)-2]
+		}
 
 		_, err := event.stream.Write(response)
 		if err != nil {

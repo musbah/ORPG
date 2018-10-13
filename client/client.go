@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"image"
 	"os"
@@ -165,15 +166,17 @@ func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *in
 		return
 	}
 
-	//TODO: change later, assuming 255 is max x and y for now
-	newX := int(response[1])
-	newY := int(response[3])
+	//TODO: change capacity depending on the server changes
+	tempX := response[2:6]
+	tempY := response[6:10]
+	newX := int(binary.LittleEndian.Uint32(tempX))
+	newY := int(binary.LittleEndian.Uint32(tempY))
 
 	if response[0] == 0 {
 		newX = -newX
 	}
 
-	if response[2] == 0 {
+	if response[1] == 0 {
 		newY = -newY
 	}
 
