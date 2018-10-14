@@ -62,6 +62,7 @@ func initializeSmuxSession(connection net.Conn) {
 
 }
 
+//TODO: add a keyEvent ticker to limit key press interval
 func handleStream(stream *smux.Stream, player *player) {
 
 	for {

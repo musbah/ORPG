@@ -2,16 +2,14 @@ package main
 
 import (
 	"encoding/binary"
+	key "musbah/multiplayer/common/keyboard"
 	"os"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/windows"
-
-	"musbah/multiplayer/common"
-
 	"github.com/xtaci/smux"
+	"golang.org/x/sys/windows"
 )
 
 type event struct {
@@ -68,13 +66,13 @@ func processEvents() {
 		for _, keyPress := range event.keyPress {
 			switch keyPress {
 			case key.Up:
-				event.player.y++
+				event.player.y += key.MoveY
 			case key.Down:
-				event.player.y--
+				event.player.y -= key.MoveY
 			case key.Right:
-				event.player.x++
+				event.player.x += key.MoveX
 			case key.Left:
-				event.player.x--
+				event.player.x -= key.MoveX
 			case 0:
 				break
 			default:

@@ -6,4 +6,7 @@ const (
 	Right = byte('r')
 	Down  = byte('d')
 	Left  = byte('l')
+
+	MoveX = 5
+	MoveY = 5
 )
