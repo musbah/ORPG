@@ -7,6 +7,6 @@ const (
 	Down  = byte('d')
 	Left  = byte('l')
 
-	MoveX = 5
-	MoveY = 5
+	MoveX = 10
+	MoveY = 10
 )

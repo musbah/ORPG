@@ -3,5 +3,5 @@ package common
 import "time"
 
 const (
-	KeyTick = 30 * time.Millisecond
+	KeyTick = 50 * time.Millisecond
 )

@@ -42,7 +42,7 @@ func run() {
 	//TODO: check if I need this on or not (depends on what I go with sprite wise and what not)
 	window.SetSmooth(false)
 
-	spriteSheet, err := loadPicture("sprites.png")
+	spriteSheet, err := loadPicture("sprites/dbz_sprites.png")
 	if err != nil {
 		log.Errorf("could not load picture, %s", err)
 		return
@@ -179,7 +179,7 @@ func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *in
 	log.Debugf("response x is %d, y is %d", newX, newY)
 	log.Debugf("x is %d and y is %d", *x, *y)
 	if *x != newX || *y != newY {
-		log.Info("wrong player position, recalibrating")
+		log.Debug("wrong player position, recalibrating")
 		*x = newX
 		*y = newY
 	}
