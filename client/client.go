@@ -42,7 +42,7 @@ func run() {
 	//TODO: check if I need this on or not (depends on what I go with sprite wise and what not)
 	window.SetSmooth(false)
 
-	spriteSheet, err := loadPicture("sprites/dbz_sprites.png")
+	spriteSheet, err := loadPicture("sprites/character.png")
 	if err != nil {
 		log.Errorf("could not load picture, %s", err)
 		return
@@ -57,7 +57,7 @@ func run() {
 		}
 	}
 
-	sprite = pixel.NewSprite(spriteSheet, spriteFrames[len(spriteFrames)-10])
+	sprite = pixel.NewSprite(spriteSheet, spriteFrames[1])
 
 	connection, err := kcp.Dial("localhost:29902")
 	if err != nil {
