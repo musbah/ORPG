@@ -1,8 +1,9 @@
 package main
 
 type player struct {
-	x uint32
-	y uint32
+	mapIndex uint32
+	x        uint32
+	y        uint32
 }
 
 //TODO: actually load player information later on

@@ -137,7 +137,6 @@ func run() {
 		select {
 		case <-second:
 			window.SetTitle(fmt.Sprintf("%s | FPS: %d", cfg.Title, frames))
-			log.Debugf("second passed")
 			frames = 0
 		default:
 		}

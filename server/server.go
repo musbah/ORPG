@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"musbah/multiplayer/common"
 	key "musbah/multiplayer/common/keyboard"
 	"os"
 	"sync"
@@ -13,13 +14,19 @@ import (
 )
 
 type event struct {
-	stream   *smux.Stream
+	streamID uint32
 	keyPress []byte
 	player   *player
 }
 
-var eventQueueMutex sync.Mutex
-var eventQueue []event
+type gameMap struct {
+	playerStreamsMutex sync.Mutex
+	playerStreams      []*smux.Stream
+	eventQueueMutex    sync.Mutex
+	eventQueue         []event
+}
+
+var gameMaps = make([]gameMap, common.TotalGameMaps)
 
 func main() {
 
@@ -47,19 +54,25 @@ func mainGameLoop() {
 	for {
 		select {
 		case <-tick:
-			processEvents()
+			processGameMaps()
 		default:
 		}
 	}
 
 }
 
-func processEvents() {
+func processGameMaps() {
+	for index := range gameMaps {
+		go processEvents(index)
+	}
+}
 
-	eventQueueMutex.Lock()
-	queue := eventQueue
-	eventQueue = nil
-	eventQueueMutex.Unlock()
+func processEvents(mapIndex int) {
+
+	gameMaps[mapIndex].eventQueueMutex.Lock()
+	queue := gameMaps[mapIndex].eventQueue
+	gameMaps[mapIndex].eventQueue = nil
+	gameMaps[mapIndex].eventQueueMutex.Unlock()
 
 	for _, event := range queue {
 
@@ -112,9 +125,19 @@ func processEvents() {
 			response[i] = byteY[i-len(byteY)-2]
 		}
 
-		_, err := event.stream.Write(response)
-		if err != nil {
-			log.Errorf("could not write to stream %s", err)
+		gameMaps[mapIndex].playerStreamsMutex.Lock()
+
+		for _, stream := range gameMaps[mapIndex].playerStreams {
+			if stream.ID() == event.streamID {
+				_, err := stream.Write(response)
+				if err != nil {
+					log.Errorf("could not write to stream %s", err)
+				}
+			} else {
+				//TODO: send this player's position to the appropriate player
+			}
 		}
+
+		gameMaps[mapIndex].playerStreamsMutex.Unlock()
 	}
 }
