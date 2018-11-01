@@ -8,7 +8,7 @@ const (
 	TotalGameMaps = 1
 
 	//TODO: change capacity depending on max X and max Y
-	MaxCoordBytesArrayLength = 4
+	MaxIntToBytesLength = 4
 
 	MovementByte    = byte('M')
 	OtherPlayerByte = byte('P')

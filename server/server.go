@@ -130,7 +130,7 @@ func createMovementBytes(currentX uint32, currentY uint32, nextX uint32, nextY u
 	//byte 0 contains the response type
 	//if it's movement, byte 1 is the sign of x and byte 2 is the sign of y
 	//and the later bytes contain the number of x and y
-	bytes := make([]byte, 3+common.MaxCoordBytesArrayLength*2)
+	bytes := make([]byte, 3+common.MaxIntToBytesLength*2)
 
 	bytes[0] = common.MovementByte
 
@@ -162,7 +162,7 @@ func addPositionToBytes(baseIndex int, bytes []byte, tempX uint32, tempY uint32)
 }
 
 func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
-	byteNumber := make([]byte, common.MaxCoordBytesArrayLength)
+	byteNumber := make([]byte, common.MaxIntToBytesLength)
 	binary.LittleEndian.PutUint32(byteNumber, numberToAppend)
 
 	length := len(byteNumber) + baseIndex
