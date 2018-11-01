@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/png" //TODO: for tiled later
+
 	// "github.com/lafriks/go-tiled"
 	"musbah/multiplayer/common"
 	key "musbah/multiplayer/common/keyboard"
@@ -161,26 +162,29 @@ func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *in
 		return
 	}
 
-	//TODO: change range depending on the server's byte capacity
-	tempX := response[2:6]
-	tempY := response[6:10]
-	newX := int(binary.LittleEndian.Uint32(tempX))
-	newY := int(binary.LittleEndian.Uint32(tempY))
+	if response[0] == common.MovementByte {
 
-	if response[0] == 0 {
-		newX = -newX
-	}
+		//TODO: change range depending on the server's byte capacity
+		tempX := response[3:7]
+		tempY := response[7:11]
+		newX := int(binary.LittleEndian.Uint32(tempX))
+		newY := int(binary.LittleEndian.Uint32(tempY))
 
-	if response[1] == 0 {
-		newY = -newY
-	}
+		if response[1] == 0 {
+			newX = -newX
+		}
 
-	log.Debugf("response x is %d, y is %d", newX, newY)
-	log.Debugf("x is %d and y is %d", *x, *y)
-	if *x != newX || *y != newY {
-		log.Debug("wrong player position, recalibrating")
-		*x = newX
-		*y = newY
+		if response[2] == 0 {
+			newY = -newY
+		}
+
+		log.Debugf("response x is %d, y is %d", newX, newY)
+		log.Debugf("x is %d and y is %d", *x, *y)
+		if *x != newX || *y != newY {
+			log.Debug("wrong player position, recalibrating")
+			*x = newX
+			*y = newY
+		}
 	}
 
 }

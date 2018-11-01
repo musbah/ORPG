@@ -6,4 +6,6 @@ import "time"
 const (
 	KeyTick       = 50 * time.Millisecond
 	TotalGameMaps = 1
+
+	MovementByte = byte('M')
 )

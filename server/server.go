@@ -20,6 +20,7 @@ type event struct {
 }
 
 type gameMap struct {
+	mutex              sync.Mutex
 	playerStreamsMutex sync.Mutex
 	playerStreams      []*smux.Stream
 	eventQueueMutex    sync.Mutex
@@ -69,6 +70,8 @@ func processGameMaps() {
 
 func processEvents(mapIndex int) {
 
+	gameMaps[mapIndex].mutex.Lock()
+
 	gameMaps[mapIndex].eventQueueMutex.Lock()
 	queue := gameMaps[mapIndex].eventQueue
 	gameMaps[mapIndex].eventQueue = nil
@@ -93,36 +96,42 @@ func processEvents(mapIndex int) {
 			}
 		}
 
-		//byte 0 is the sign of x and byte 1 is the sign of y
-		//and then byte 2 and 3 are the values of each
-		response := make([]byte, 10)
+		//byte 0 contains the response type
+		//if it's movement, byte 1 is the sign of x and byte 2 is the sign of y
+		//and the later bytes contain the number of x and y
+		response := make([]byte, 11)
+
+		response[0] = common.MovementByte
 
 		tempX := event.player.x
 		tempY := event.player.y
 
-		response[0] = 1
+		response[1] = 1
 		if event.player.x < 0 {
-			response[0] = 0
+			response[1] = 0
 			tempX = -tempX
 		}
 
-		response[1] = 1
+		response[2] = 1
 		if event.player.y < 0 {
-			response[1] = 0
+			response[2] = 0
 			tempY = -tempY
 		}
+
+		//index to start adding numbers from
+		baseIndex := 3
 
 		//TODO: change capacity depending on max X and max Y
 		byteX := make([]byte, 4)
 		binary.LittleEndian.PutUint32(byteX, tempX)
-		for i := 2; i < len(byteX)+2; i++ {
-			response[i] = byteX[i-2]
+		for i := baseIndex; i < len(byteX)+baseIndex; i++ {
+			response[i] = byteX[i-baseIndex]
 		}
 
 		byteY := make([]byte, 4)
 		binary.LittleEndian.PutUint32(byteY, tempY)
-		for i := len(byteX) + 2; i < len(byteX)+len(byteY)+2; i++ {
-			response[i] = byteY[i-len(byteY)-2]
+		for i := len(byteX) + baseIndex; i < len(byteX)+len(byteY)+baseIndex; i++ {
+			response[i] = byteY[i-len(byteY)-baseIndex]
 		}
 
 		gameMaps[mapIndex].playerStreamsMutex.Lock()
@@ -140,4 +149,6 @@ func processEvents(mapIndex int) {
 
 		gameMaps[mapIndex].playerStreamsMutex.Unlock()
 	}
+
+	gameMaps[mapIndex].mutex.Unlock()
 }
