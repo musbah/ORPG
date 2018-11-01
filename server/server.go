@@ -101,21 +101,16 @@ func processEvents(mapIndex int) {
 			}
 		}
 
-		//byte 0 contains the response type
-		//if it's movement, byte 1 is the sign of x and byte 2 is the sign of y
-		//and the later bytes contain the number of x and y
-		response := make([]byte, 11)
-
 		tempX := event.player.x
 		tempY := event.player.y
 
-		addMovementBytes(0, response, event.player.x, event.player.y, tempX, tempY)
+		movementBytes := createMovementBytes(event.player.x, event.player.y, tempX, tempY)
 
 		gameMaps[mapIndex].playerConnectionsMutex.Lock()
 
 		for _, playerConn := range gameMaps[mapIndex].playerConnections {
 			if playerConn.id == event.player.id {
-				_, err := playerConn.stream.Write(response)
+				_, err := playerConn.stream.Write(movementBytes)
 				if err != nil {
 					log.Errorf("could not write to stream %s", err)
 				}
@@ -130,25 +125,32 @@ func processEvents(mapIndex int) {
 	gameMaps[mapIndex].mutex.Unlock()
 }
 
-func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) {
+func createMovementBytes(currentX uint32, currentY uint32, nextX uint32, nextY uint32) []byte {
 
-	bytes[baseIndex] = common.MovementByte
+	//byte 0 contains the response type
+	//if it's movement, byte 1 is the sign of x and byte 2 is the sign of y
+	//and the later bytes contain the number of x and y
+	bytes := make([]byte, 3+common.MaxCoordBytesArrayLength*2)
 
-	bytes[baseIndex+1] = 1
+	bytes[0] = common.MovementByte
+
+	bytes[1] = 1
 	if currentX < 0 {
-		bytes[baseIndex+1] = 0
+		bytes[1] = 0
 		nextX = -nextX
 	}
 
-	bytes[baseIndex+2] = 1
+	bytes[2] = 1
 	if currentY < 0 {
-		bytes[baseIndex+2] = 0
+		bytes[2] = 0
 		nextY = -nextY
 	}
 
 	//index to start adding numbers from
-	baseIndex = baseIndex + 3
+	baseIndex := 3
 	addPositionToBytes(baseIndex, bytes, nextX, nextY)
+
+	return bytes
 }
 
 func addPositionToBytes(baseIndex int, bytes []byte, tempX uint32, tempY uint32) int {
