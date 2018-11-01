@@ -106,26 +106,10 @@ func processEvents(mapIndex int) {
 		//and the later bytes contain the number of x and y
 		response := make([]byte, 11)
 
-		response[0] = common.MovementByte
-
 		tempX := event.player.x
 		tempY := event.player.y
 
-		response[1] = 1
-		if event.player.x < 0 {
-			response[1] = 0
-			tempX = -tempX
-		}
-
-		response[2] = 1
-		if event.player.y < 0 {
-			response[2] = 0
-			tempY = -tempY
-		}
-
-		//index to start adding numbers from
-		baseIndex := 3
-		addPositionToBytes(baseIndex, tempX, tempY, response)
+		addMovementBytes(0, response, event.player.x, event.player.y, tempX, tempY)
 
 		gameMaps[mapIndex].playerConnectionsMutex.Lock()
 
@@ -146,23 +130,42 @@ func processEvents(mapIndex int) {
 	gameMaps[mapIndex].mutex.Unlock()
 }
 
-func addPositionToBytes(baseIndex int, tempX uint32, tempY uint32, resultArray []byte) int {
+func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) {
 
-	length := addIntToBytes(baseIndex, tempX, resultArray)
-	length = addIntToBytes(length, tempY, resultArray)
+	bytes[baseIndex] = common.MovementByte
+
+	bytes[baseIndex+1] = 1
+	if currentX < 0 {
+		bytes[baseIndex+1] = 0
+		nextX = -nextX
+	}
+
+	bytes[baseIndex+2] = 1
+	if currentY < 0 {
+		bytes[baseIndex+2] = 0
+		nextY = -nextY
+	}
+
+	//index to start adding numbers from
+	baseIndex = baseIndex + 3
+	addPositionToBytes(baseIndex, bytes, nextX, nextY)
+}
+
+func addPositionToBytes(baseIndex int, bytes []byte, tempX uint32, tempY uint32) int {
+
+	length := addIntToBytes(baseIndex, bytes, tempX)
+	length = addIntToBytes(length, bytes, tempY)
 
 	return length
 }
 
-func addIntToBytes(baseIndex int, numberToAppend uint32, resultArray []byte) int {
-
-	//TODO: change capacity depending on max X and max Y
-	byteNumber := make([]byte, 4)
+func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
+	byteNumber := make([]byte, common.MaxCoordBytesArrayLength)
 	binary.LittleEndian.PutUint32(byteNumber, numberToAppend)
 
 	length := len(byteNumber) + baseIndex
 	for i := baseIndex; i < length; i++ {
-		resultArray[i] = byteNumber[i-baseIndex]
+		bytes[i] = byteNumber[i-baseIndex]
 	}
 
 	return length

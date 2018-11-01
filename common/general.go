@@ -7,6 +7,9 @@ const (
 	KeyTick       = 50 * time.Millisecond
 	TotalGameMaps = 1
 
+	//TODO: change capacity depending on max X and max Y
+	MaxCoordBytesArrayLength = 4
+
 	MovementByte    = byte('M')
 	OtherPlayerByte = byte('P')
 )
