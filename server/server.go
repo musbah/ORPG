@@ -148,13 +148,13 @@ func processEvents(mapIndex int) {
 
 func addPositionToBytes(baseIndex int, tempX uint32, tempY uint32, resultArray []byte) int {
 
-	length := addNumberToBytes(baseIndex, tempX, resultArray)
-	length = addNumberToBytes(length, tempY, resultArray)
+	length := addIntToBytes(baseIndex, tempX, resultArray)
+	length = addIntToBytes(length, tempY, resultArray)
 
 	return length
 }
 
-func addNumberToBytes(baseIndex int, numberToAppend uint32, resultArray []byte) int {
+func addIntToBytes(baseIndex int, numberToAppend uint32, resultArray []byte) int {
 
 	//TODO: change capacity depending on max X and max Y
 	byteNumber := make([]byte, 4)
