@@ -28,7 +28,7 @@ type gameMap struct {
 }
 
 type playerConnection struct {
-	id     uint64
+	id     uint32
 	stream *smux.Stream
 }
 
