@@ -7,5 +7,6 @@ const (
 	KeyTick       = 50 * time.Millisecond
 	TotalGameMaps = 1
 
-	MovementByte = byte('M')
+	MovementByte    = byte('M')
+	OtherPlayerByte = byte('P')
 )

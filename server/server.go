@@ -125,19 +125,7 @@ func processEvents(mapIndex int) {
 
 		//index to start adding numbers from
 		baseIndex := 3
-
-		//TODO: change capacity depending on max X and max Y
-		byteX := make([]byte, 4)
-		binary.LittleEndian.PutUint32(byteX, tempX)
-		for i := baseIndex; i < len(byteX)+baseIndex; i++ {
-			response[i] = byteX[i-baseIndex]
-		}
-
-		byteY := make([]byte, 4)
-		binary.LittleEndian.PutUint32(byteY, tempY)
-		for i := len(byteX) + baseIndex; i < len(byteX)+len(byteY)+baseIndex; i++ {
-			response[i] = byteY[i-len(byteY)-baseIndex]
-		}
+		addPositionToBytes(baseIndex, tempX, tempY, response)
 
 		gameMaps[mapIndex].playerConnectionsMutex.Lock()
 
@@ -156,4 +144,26 @@ func processEvents(mapIndex int) {
 	}
 
 	gameMaps[mapIndex].mutex.Unlock()
+}
+
+func addPositionToBytes(baseIndex int, tempX uint32, tempY uint32, resultArray []byte) int {
+
+	length := addNumberToBytes(baseIndex, tempX, resultArray)
+	length = addNumberToBytes(length, tempY, resultArray)
+
+	return length
+}
+
+func addNumberToBytes(baseIndex int, numberToAppend uint32, resultArray []byte) int {
+
+	//TODO: change capacity depending on max X and max Y
+	byteNumber := make([]byte, 4)
+	binary.LittleEndian.PutUint32(byteNumber, numberToAppend)
+
+	length := len(byteNumber) + baseIndex
+	for i := baseIndex; i < length; i++ {
+		resultArray[i] = byteNumber[i-baseIndex]
+	}
+
+	return length
 }
