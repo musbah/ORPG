@@ -1,7 +1,9 @@
 package main
 
 import (
+	"musbah/multiplayer/common"
 	"net"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	kcp "github.com/xtaci/kcp-go"
@@ -62,9 +64,9 @@ func initializeSmuxSession(connection net.Conn) {
 
 }
 
-//TODO: add a keyEvent ticker to limit key press interval
 func handleStream(stream *smux.Stream, player *player) {
 
+	var lastEvent time.Time
 	for {
 
 		buffer := make([]byte, 100)
@@ -74,6 +76,14 @@ func handleStream(stream *smux.Stream, player *player) {
 			log.Errorf("could not read stream, %s", err)
 			return
 		}
+
+		//Used to limit key event interval
+		if lastEvent.Add(common.KeyTick).After(time.Now()) {
+			log.Debug("skipping key event")
+			continue
+		}
+
+		lastEvent = time.Now()
 
 		log.Debugf("read %s", buffer)
 		event := event{

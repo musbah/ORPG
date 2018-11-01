@@ -84,7 +84,7 @@ func run() {
 
 	frames := 0
 	second := time.Tick(time.Second)
-	keyTick := time.Tick(common.KeyTick)
+	keyTick := time.Tick(common.KeyTick + 10*time.Millisecond)
 
 	x := 0
 	y := 0
