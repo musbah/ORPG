@@ -20,11 +20,16 @@ type event struct {
 }
 
 type gameMap struct {
-	mutex              sync.Mutex
-	playerStreamsMutex sync.Mutex
-	playerStreams      []*smux.Stream
-	eventQueueMutex    sync.Mutex
-	eventQueue         []event
+	mutex                  sync.Mutex
+	playerConnectionsMutex sync.Mutex
+	playerConnections      []playerConnection
+	eventQueueMutex        sync.Mutex
+	eventQueue             []event
+}
+
+type playerConnection struct {
+	id     uint64
+	stream *smux.Stream
 }
 
 var gameMaps = make([]gameMap, common.TotalGameMaps)
@@ -134,11 +139,11 @@ func processEvents(mapIndex int) {
 			response[i] = byteY[i-len(byteY)-baseIndex]
 		}
 
-		gameMaps[mapIndex].playerStreamsMutex.Lock()
+		gameMaps[mapIndex].playerConnectionsMutex.Lock()
 
-		for _, stream := range gameMaps[mapIndex].playerStreams {
-			if stream.ID() == event.streamID {
-				_, err := stream.Write(response)
+		for _, playerConn := range gameMaps[mapIndex].playerConnections {
+			if playerConn.id == event.player.id {
+				_, err := playerConn.stream.Write(response)
 				if err != nil {
 					log.Errorf("could not write to stream %s", err)
 				}
@@ -147,7 +152,7 @@ func processEvents(mapIndex int) {
 			}
 		}
 
-		gameMaps[mapIndex].playerStreamsMutex.Unlock()
+		gameMaps[mapIndex].playerConnectionsMutex.Unlock()
 	}
 
 	gameMaps[mapIndex].mutex.Unlock()

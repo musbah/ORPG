@@ -57,9 +57,9 @@ func initializeSmuxSession(connection net.Conn) {
 		}
 		defer stream.Close()
 
-		gameMaps[player.mapIndex].playerStreamsMutex.Lock()
-		gameMaps[player.mapIndex].playerStreams = append(gameMaps[player.mapIndex].playerStreams, stream)
-		gameMaps[player.mapIndex].playerStreamsMutex.Unlock()
+		gameMaps[player.mapIndex].playerConnectionsMutex.Lock()
+		gameMaps[player.mapIndex].playerConnections = append(gameMaps[player.mapIndex].playerConnections, playerConnection{id: player.id, stream: stream})
+		gameMaps[player.mapIndex].playerConnectionsMutex.Unlock()
 
 		go handleStream(stream, player)
 
@@ -90,7 +90,6 @@ func handleStream(stream *smux.Stream, player *player) {
 
 		log.Debugf("read %s", buffer)
 		event := event{
-			streamID: stream.ID(),
 			keyPress: buffer,
 			player:   player,
 		}
