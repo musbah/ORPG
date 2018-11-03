@@ -20,16 +20,11 @@ type event struct {
 }
 
 type gameMap struct {
-	mutex                  sync.Mutex
-	playerConnectionsMutex sync.Mutex
-	playerConnections      []playerConnection
-	eventQueueMutex        sync.Mutex
-	eventQueue             []event
-}
-
-type playerConnection struct {
-	id     uint32
-	stream *smux.Stream
+	mutex           sync.Mutex
+	streamsMutex    sync.Mutex
+	streams         []*smux.Stream
+	eventQueueMutex sync.Mutex
+	eventQueue      []event
 }
 
 var gameMaps = make([]gameMap, common.TotalGameMaps)
@@ -82,6 +77,10 @@ func processEvents(mapIndex int) {
 	gameMaps[mapIndex].eventQueue = nil
 	gameMaps[mapIndex].eventQueueMutex.Unlock()
 
+	//Not using len and capacity because I won't use append
+	//append is slower and it might eventually matter (server side at least)
+	bytesToSend := make([]byte, common.MaxBytesToSendLength)
+	bytesToSendIndex := 0
 	for _, event := range queue {
 
 		for _, keyPress := range event.keyPress {
@@ -104,65 +103,56 @@ func processEvents(mapIndex int) {
 		tempX := event.player.x
 		tempY := event.player.y
 
-		movementBytes, movementBytesLength := createMovementBytes(event.player.x, event.player.y, tempX, tempY)
+		playerBytes := make([]byte, common.MaxPlayerBytesLength)
+		playerBytes[0] = common.PlayerByte
+		length := addIntToBytes(1, playerBytes, event.player.id)
+		length = addMovementBytes(length, playerBytes, event.player.x, event.player.y, tempX, tempY)
 
-		otherPlayerBytes := make([]byte, 1+common.MaxIntToBytesLength+movementBytesLength)
-		otherPlayerBytes[0] = common.OtherPlayerByte
-		addIntToBytes(1, otherPlayerBytes, event.player.id)
-
-		gameMaps[mapIndex].playerConnectionsMutex.Lock()
-
-		for _, playerConn := range gameMaps[mapIndex].playerConnections {
-			if playerConn.id == event.player.id {
-
-				_, err := playerConn.stream.Write(movementBytes)
-				if err != nil {
-					log.Errorf("could not write to player's stream %s", err)
-				}
-
-			} else {
-
-				//TODO:change this, make it so that all the info is sent per player (1 write per player)
-				_, err := playerConn.stream.Write(otherPlayerBytes)
-				if err != nil {
-					log.Errorf("could not write to other player's stream %s", err)
-				}
-
-			}
+		for i := bytesToSendIndex; i < length+bytesToSendIndex; i++ {
+			bytesToSend[i] = playerBytes[i-bytesToSendIndex]
 		}
 
-		gameMaps[mapIndex].playerConnectionsMutex.Unlock()
+		bytesToSendIndex += length
 	}
+
+	gameMaps[mapIndex].streamsMutex.Lock()
+
+	for _, stream := range gameMaps[mapIndex].streams {
+
+		_, err := stream.Write(bytesToSend)
+		if err != nil {
+			log.Errorf("could not write to player's stream %s", err)
+		}
+
+	}
+
+	gameMaps[mapIndex].streamsMutex.Unlock()
 
 	gameMaps[mapIndex].mutex.Unlock()
 }
 
-func createMovementBytes(currentX uint32, currentY uint32, nextX uint32, nextY uint32) ([]byte, int) {
+func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) int {
 
-	//byte 0 contains the response type
+	//byte 0 (baseIndex) contains the response type
 	//if it's movement, byte 1 is the sign of x and byte 2 is the sign of y
 	//and the later bytes contain the number of x and y
-	bytes := make([]byte, 3+common.MaxIntToBytesLength*2)
+	bytes[baseIndex] = common.MovementByte
 
-	bytes[0] = common.MovementByte
-
-	bytes[1] = 1
+	bytes[baseIndex+1] = 1
 	if currentX < 0 {
-		bytes[1] = 0
+		bytes[baseIndex+1] = 0
 		nextX = -nextX
 	}
 
-	bytes[2] = 1
+	bytes[baseIndex+2] = 1
 	if currentY < 0 {
-		bytes[2] = 0
+		bytes[baseIndex+2] = 0
 		nextY = -nextY
 	}
 
 	//index to start adding numbers from
-	baseIndex := 3
-	length := addPositionToBytes(baseIndex, bytes, nextX, nextY)
-
-	return bytes, length
+	baseIndex = baseIndex + 3
+	return addPositionToBytes(baseIndex, bytes, nextX, nextY)
 }
 
 func addPositionToBytes(baseIndex int, bytes []byte, tempX uint32, tempY uint32) int {

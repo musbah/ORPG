@@ -25,6 +25,9 @@ var window *pixelgl.Window
 var sprite *pixel.Sprite
 var batch *pixel.Batch
 
+//TODO: get local ID from the server on login
+var localPlayerID uint32
+
 type player struct {
 	x int
 	y int
@@ -175,37 +178,42 @@ func sendKeyPress(stream *smux.Stream, pressedKeys []byte) {
 }
 
 func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan chan bool) {
-	response := make([]byte, 100)
+	response := make([]byte, common.MaxBytesToSendLength)
 	_, err := stream.Read(response)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 
-	if response[0] == common.MovementByte {
+	for i := 0; response[i] == common.PlayerByte; i += common.MaxPlayerBytesLength {
+		playerID := binary.LittleEndian.Uint32(response[i+1 : common.MaxIntToBytesLength+i+1])
 
-		newX, newY := getMovementPositionFromBytes(1, response)
+		if response[common.MaxIntToBytesLength+i+1] == common.MovementByte {
 
-		log.Debugf("response x is %d, y is %d", newX, newY)
-		log.Debugf("x is %d and y is %d", *x, *y)
-		if *x != newX || *y != newY {
-			log.Debug("wrong player position, recalibrating")
-			*x = newX
-			*y = newY
+			newX, newY := getMovementPositionFromBytes(common.MaxIntToBytesLength+i+2, response)
+
+			if playerID == localPlayerID {
+
+				log.Debugf("response x is %d, y is %d", newX, newY)
+				log.Debugf("x is %d and y is %d", *x, *y)
+				if *x != newX || *y != newY {
+					log.Debug("wrong player position, recalibrating")
+					*x = newX
+					*y = newY
+				}
+
+			} else {
+				value, ok := players[playerID]
+				if ok {
+					value.x = newX
+					value.y = newY
+					players[playerID] = value
+				} else {
+					players[playerID] = player{x: newX, y: newY}
+				}
+			}
 		}
-	} else if response[0] == common.OtherPlayerByte {
-		playerID := binary.LittleEndian.Uint32(response[1 : common.MaxIntToBytesLength+1])
 
-		newX, newY := getMovementPositionFromBytes(common.MaxIntToBytesLength+1, response)
-
-		value, ok := players[playerID]
-		if ok {
-			value.x = newX
-			value.y = newY
-			players[playerID] = value
-		} else {
-			players[playerID] = player{x: newX, y: newY}
-		}
 	}
 
 	receiveResponseChan <- true
