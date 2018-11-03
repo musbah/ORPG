@@ -88,7 +88,7 @@ func handleStream(stream *smux.Stream, player *player) {
 
 		lastEvent = time.Now()
 
-		log.Debugf("read %s", buffer)
+		// log.Debugf("read %s", buffer)
 		event := event{
 			keyPress: buffer,
 			player:   player,

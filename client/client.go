@@ -91,6 +91,9 @@ func run() {
 	y := 0
 	// last := time.Now()
 
+	receiveResponseChan := make(chan bool, 1)
+	receiveResponseChan <- true
+
 	//units to move per second (in this case 10 tiles per sec)
 	// speed := 500.0
 	// tileSize := 50.0
@@ -129,7 +132,15 @@ func run() {
 		// tilesPerSec := speed / tileSize * delta
 
 		if len(pressedKeys) != 0 {
-			go sendKeyPressAndCheckPosition(stream, pressedKeys, &x, &y)
+			go sendKeyPress(stream, pressedKeys)
+		}
+
+		//Used so that only 1 receiveResponse goroutine is created
+		select {
+		case <-receiveResponseChan:
+			receiveResponseChan = make(chan bool, 1)
+			go receiveResponse(stream, &x, &y, receiveResponseChan)
+		default:
 		}
 
 		drawPlayerPosition(x, y)
@@ -146,17 +157,19 @@ func run() {
 
 }
 
-func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *int, y *int) {
+func sendKeyPress(stream *smux.Stream, pressedKeys []byte) {
 
-	log.Infof("send keys %v", pressedKeys)
+	// log.Infof("send keys %v", pressedKeys)
 	_, err := stream.Write(pressedKeys)
 	if err != nil {
 		log.Error(err)
 		return
 	}
+}
 
+func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan chan bool) {
 	response := make([]byte, 100)
-	_, err = stream.Read(response)
+	_, err := stream.Read(response)
 	if err != nil {
 		log.Error(err)
 		return
@@ -187,6 +200,7 @@ func sendKeyPressAndCheckPosition(stream *smux.Stream, pressedKeys []byte, x *in
 		}
 	}
 
+	receiveResponseChan <- true
 }
 
 func drawPlayerPosition(x int, y int) {
