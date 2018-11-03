@@ -203,14 +203,8 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 				}
 
 			} else {
-				value, ok := players[playerID]
-				if ok {
-					value.x = newX
-					value.y = newY
-					players[playerID] = value
-				} else {
-					players[playerID] = player{x: newX, y: newY}
-				}
+				//TODO: might need to use if ok later on, but for now I don't need to keep any player info
+				players[playerID] = player{x: newX, y: newY}
 			}
 		}
 

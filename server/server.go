@@ -51,24 +51,24 @@ func mainGameLoop() {
 
 	//20 ticks per second
 	tick := time.Tick(50 * time.Millisecond)
+	maxProcessRoutines := make(chan int, 10)
 
 	for {
 		select {
 		case <-tick:
-			processGameMaps()
+
+			for index := range gameMaps {
+				maxProcessRoutines <- 1
+				go processEvents(index, maxProcessRoutines)
+			}
+
 		default:
 		}
 	}
 
 }
 
-func processGameMaps() {
-	for index := range gameMaps {
-		go processEvents(index)
-	}
-}
-
-func processEvents(mapIndex int) {
+func processEvents(mapIndex int, maxProcessRoutines chan int) {
 
 	gameMaps[mapIndex].mutex.Lock()
 
@@ -77,58 +77,63 @@ func processEvents(mapIndex int) {
 	gameMaps[mapIndex].eventQueue = nil
 	gameMaps[mapIndex].eventQueueMutex.Unlock()
 
-	//Not using len and capacity because I won't use append
-	//append is slower and it might eventually matter (server side at least)
-	bytesToSend := make([]byte, common.MaxBytesToSendLength)
-	bytesToSendIndex := 0
-	for _, event := range queue {
+	if len(queue) > 0 {
 
-		for _, keyPress := range event.keyPress {
-			switch keyPress {
-			case key.Up:
-				event.player.y += key.MoveY
-			case key.Down:
-				event.player.y -= key.MoveY
-			case key.Right:
-				event.player.x += key.MoveX
-			case key.Left:
-				event.player.x -= key.MoveX
-			case 0:
-				break
-			default:
+		//Not using len and capacity because I won't use append
+		//append is slower and it might eventually matter (server side at least)
+		bytesToSend := make([]byte, common.MaxBytesToSendLength)
+		bytesToSendIndex := 0
+		for _, event := range queue {
 
+			for _, keyPress := range event.keyPress {
+				switch keyPress {
+				case key.Up:
+					event.player.y += key.MoveY
+				case key.Down:
+					event.player.y -= key.MoveY
+				case key.Right:
+					event.player.x += key.MoveX
+				case key.Left:
+					event.player.x -= key.MoveX
+				case 0:
+					break
+				default:
+
+				}
 			}
+
+			tempX := event.player.x
+			tempY := event.player.y
+
+			playerBytes := make([]byte, common.MaxPlayerBytesLength)
+			playerBytes[0] = common.PlayerByte
+			length := addIntToBytes(1, playerBytes, event.player.id)
+			length = addMovementBytes(length, playerBytes, event.player.x, event.player.y, tempX, tempY)
+
+			for i := bytesToSendIndex; i < length+bytesToSendIndex; i++ {
+				bytesToSend[i] = playerBytes[i-bytesToSendIndex]
+			}
+
+			bytesToSendIndex += length
 		}
 
-		tempX := event.player.x
-		tempY := event.player.y
+		gameMaps[mapIndex].streamsMutex.Lock()
 
-		playerBytes := make([]byte, common.MaxPlayerBytesLength)
-		playerBytes[0] = common.PlayerByte
-		length := addIntToBytes(1, playerBytes, event.player.id)
-		length = addMovementBytes(length, playerBytes, event.player.x, event.player.y, tempX, tempY)
+		for _, stream := range gameMaps[mapIndex].streams {
 
-		for i := bytesToSendIndex; i < length+bytesToSendIndex; i++ {
-			bytesToSend[i] = playerBytes[i-bytesToSendIndex]
+			_, err := stream.Write(bytesToSend)
+			if err != nil {
+				log.Errorf("could not write to player's stream %s", err)
+			}
+
 		}
 
-		bytesToSendIndex += length
+		gameMaps[mapIndex].streamsMutex.Unlock()
 	}
-
-	gameMaps[mapIndex].streamsMutex.Lock()
-
-	for _, stream := range gameMaps[mapIndex].streams {
-
-		_, err := stream.Write(bytesToSend)
-		if err != nil {
-			log.Errorf("could not write to player's stream %s", err)
-		}
-
-	}
-
-	gameMaps[mapIndex].streamsMutex.Unlock()
 
 	gameMaps[mapIndex].mutex.Unlock()
+
+	<-maxProcessRoutines
 }
 
 func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) int {
