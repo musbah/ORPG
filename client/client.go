@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"image"
 	_ "image/png" //TODO: for tiled later
+	"strconv"
+	"strings"
 
 	// "github.com/lafriks/go-tiled"
 	"musbah/multiplayer/common"
@@ -29,13 +32,28 @@ var batch *pixel.Batch
 var localPlayerID uint32
 
 type player struct {
-	x int
-	y int
+	sprite *pixel.Sprite
+	x      int
+	y      int
 }
 
 var players = make(map[uint32]player)
 
+var spriteFrames []pixel.Rect
+var spriteSheet pixel.Picture
+
 func run() {
+
+	//TODO: temporary way to pick a playerID, will work differently later on (this has to match serverID)
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter playerID: ")
+	text, _ := reader.ReadString('\n')
+	inputPlayerID, err := strconv.Atoi(strings.TrimSpace(text))
+	if err != nil {
+		log.Errorf("Could not get playerID, %s", err)
+	}
+
+	localPlayerID = uint32(inputPlayerID)
 
 	cfg := pixelgl.WindowConfig{
 		Title:  "Test",
@@ -43,7 +61,6 @@ func run() {
 		VSync:  false,
 	}
 
-	var err error
 	window, err = pixelgl.NewWindow(cfg)
 	if err != nil {
 		log.Errorf("could not create window, %s", err)
@@ -53,7 +70,7 @@ func run() {
 	//TODO: check if I need this on or not (depends on what I go with sprite wise and what not)
 	window.SetSmooth(false)
 
-	spriteSheet, err := loadPicture("sprites/character.png")
+	spriteSheet, err = loadPicture("sprites/character.png")
 	if err != nil {
 		log.Errorf("could not load picture, %s", err)
 		return
@@ -61,7 +78,6 @@ func run() {
 
 	batch = pixel.NewBatch(&pixel.TrianglesData{}, spriteSheet)
 
-	var spriteFrames []pixel.Rect
 	for x := spriteSheet.Bounds().Min.X; x < spriteSheet.Bounds().Max.X; x += 32 {
 		for y := spriteSheet.Bounds().Min.Y; y < spriteSheet.Bounds().Max.Y; y += 32 {
 			spriteFrames = append(spriteFrames, pixel.R(x, y, x+32, y+32))
@@ -203,8 +219,14 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 				}
 
 			} else {
-				//TODO: might need to use if ok later on, but for now I don't need to keep any player info
-				players[playerID] = player{x: newX, y: newY}
+				playerValue, ok := players[playerID]
+				if ok {
+					playerValue.x = newX
+					playerValue.y = newY
+					players[playerID] = playerValue
+				} else {
+					players[playerID] = player{x: newX, y: newY, sprite: pixel.NewSprite(spriteSheet, spriteFrames[1])}
+				}
 			}
 		}
 
@@ -215,11 +237,19 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 
 func drawPlayerPosition(x int, y int) {
 
+	//TODO: combine current player and other players
 	position := pixel.Vec{X: float64(x), Y: float64(y)}
 	matrix := pixel.IM.Moved(position)
 
 	batch.Clear()
 	sprite.Draw(batch, matrix)
+
+	for _, player := range players {
+		position := pixel.Vec{X: float64(player.x), Y: float64(player.y)}
+		matrix := pixel.IM.Moved(position)
+		player.sprite.Draw(batch, matrix)
+	}
+
 	batch.Draw(window)
 
 	window.Update()
