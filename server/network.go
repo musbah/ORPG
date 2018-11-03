@@ -29,6 +29,7 @@ func startListening(port string) {
 		}
 		defer connection.Close()
 
+		log.Debug("accepted new connection")
 		go initializeSmuxSession(connection)
 	}
 }

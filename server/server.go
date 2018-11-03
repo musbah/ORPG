@@ -49,21 +49,17 @@ func main() {
 
 func mainGameLoop() {
 
-	//20 ticks per second
-	tick := time.Tick(50 * time.Millisecond)
 	maxProcessRoutines := make(chan int, 10)
 
 	for {
-		select {
-		case <-tick:
 
-			for index := range gameMaps {
-				maxProcessRoutines <- 1
-				go processEvents(index, maxProcessRoutines)
-			}
-
-		default:
+		for index := range gameMaps {
+			maxProcessRoutines <- 1
+			go processEvents(index, maxProcessRoutines)
 		}
+
+		//20 ticks per second
+		time.Sleep(50 * time.Millisecond)
 	}
 
 }
@@ -119,11 +115,15 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 
 		gameMaps[mapIndex].streamsMutex.Lock()
 
-		for _, stream := range gameMaps[mapIndex].streams {
+		for i, stream := range gameMaps[mapIndex].streams {
 
 			_, err := stream.Write(bytesToSend)
 			if err != nil {
 				log.Errorf("could not write to player's stream %s", err)
+
+				//delete stream from array (overwrote value with last element)
+				gameMaps[mapIndex].streams[i] = gameMaps[mapIndex].streams[len(gameMaps[mapIndex].streams)-1]
+				gameMaps[mapIndex].streams = gameMaps[mapIndex].streams[:len(gameMaps[mapIndex].streams)-1]
 			}
 
 		}
