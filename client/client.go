@@ -25,6 +25,13 @@ var window *pixelgl.Window
 var sprite *pixel.Sprite
 var batch *pixel.Batch
 
+type player struct {
+	x int
+	y int
+}
+
+var players = make(map[uint32]player)
+
 func run() {
 
 	cfg := pixelgl.WindowConfig{
@@ -177,19 +184,7 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 
 	if response[0] == common.MovementByte {
 
-		//TODO: change range depending on the server's byte capacity
-		tempX := response[3:7]
-		tempY := response[7:11]
-		newX := int(binary.LittleEndian.Uint32(tempX))
-		newY := int(binary.LittleEndian.Uint32(tempY))
-
-		if response[1] == 0 {
-			newX = -newX
-		}
-
-		if response[2] == 0 {
-			newY = -newY
-		}
+		newX, newY := getMovementPositionFromBytes(1, response)
 
 		log.Debugf("response x is %d, y is %d", newX, newY)
 		log.Debugf("x is %d and y is %d", *x, *y)
@@ -197,6 +192,19 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 			log.Debug("wrong player position, recalibrating")
 			*x = newX
 			*y = newY
+		}
+	} else if response[0] == common.OtherPlayerByte {
+		playerID := binary.LittleEndian.Uint32(response[1 : common.MaxIntToBytesLength+1])
+
+		newX, newY := getMovementPositionFromBytes(common.MaxIntToBytesLength+1, response)
+
+		value, ok := players[playerID]
+		if ok {
+			value.x = newX
+			value.y = newY
+			players[playerID] = value
+		} else {
+			players[playerID] = player{x: newX, y: newY}
 		}
 	}
 
@@ -244,4 +252,21 @@ func loadPicture(path string) (pixel.Picture, error) {
 	}
 
 	return pixel.PictureDataFromImage(img), nil
+}
+
+func getMovementPositionFromBytes(baseIndex int, bytes []byte) (int, int) {
+	tempX := bytes[baseIndex+2 : common.MaxIntToBytesLength+baseIndex+2]
+	tempY := bytes[common.MaxIntToBytesLength+baseIndex+2 : (common.MaxIntToBytesLength*2)+baseIndex+2]
+	newX := int(binary.LittleEndian.Uint32(tempX))
+	newY := int(binary.LittleEndian.Uint32(tempY))
+
+	if bytes[baseIndex] == 0 {
+		newX = -newX
+	}
+
+	if bytes[baseIndex+1] == 0 {
+		newY = -newY
+	}
+
+	return newX, newY
 }

@@ -122,6 +122,7 @@ func processEvents(mapIndex int) {
 
 			} else {
 
+				//TODO:change this, make it so that all the info is sent per player (1 write per player)
 				_, err := playerConn.stream.Write(otherPlayerBytes)
 				if err != nil {
 					log.Errorf("could not write to other player's stream %s", err)
