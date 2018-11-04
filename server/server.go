@@ -53,6 +53,8 @@ func mainGameLoop() {
 
 	for {
 
+		//TODO: look into a weird bug that stops this loop mid run
+		//to reproduce it, connect with a client, walk around a bit, exit and connect with client again
 		for index := range gameMaps {
 			maxProcessRoutines <- 1
 			go processEvents(index, maxProcessRoutines)
@@ -81,6 +83,7 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 		bytesToSendIndex := 0
 		for _, event := range queue {
 
+		breakKeyPress:
 			for _, keyPress := range event.keyPress {
 				switch keyPress {
 				case key.Up:
@@ -92,7 +95,7 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 				case key.Left:
 					event.player.x -= key.MoveX
 				case 0:
-					break
+					break breakKeyPress
 				default:
 
 				}
@@ -120,10 +123,7 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 			_, err := stream.Write(bytesToSend)
 			if err != nil {
 				log.Errorf("could not write to player's stream %s", err)
-
-				//delete stream from array (overwrote value with last element)
-				gameMaps[mapIndex].streams[i] = gameMaps[mapIndex].streams[len(gameMaps[mapIndex].streams)-1]
-				gameMaps[mapIndex].streams = gameMaps[mapIndex].streams[:len(gameMaps[mapIndex].streams)-1]
+				gameMaps[mapIndex].streams = deleteFromStream(gameMaps[mapIndex].streams, i)
 			}
 
 		}
@@ -178,4 +178,10 @@ func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
 	}
 
 	return length
+}
+
+func deleteFromStream(array []*smux.Stream, index int) []*smux.Stream {
+	//delete from array (overwrite value with last element's value)
+	array[index] = array[len(array)-1]
+	return array[:len(array)-1]
 }

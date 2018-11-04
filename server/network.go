@@ -73,7 +73,7 @@ func handleStream(stream *smux.Stream, player *player) {
 	var lastEvent time.Time
 	for {
 
-		buffer := make([]byte, 100)
+		buffer := make([]byte, 10)
 
 		_, err := stream.Read(buffer)
 		if err != nil {
