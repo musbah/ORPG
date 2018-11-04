@@ -19,9 +19,9 @@ type player struct {
 func loadPlayer() *player {
 
 	idMutex.Lock()
-	player := player{id: id}
+	currentPlayer := player{id: id}
 	id++
 	idMutex.Unlock()
 
-	return &player
+	return &currentPlayer
 }

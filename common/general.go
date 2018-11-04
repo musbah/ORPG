@@ -12,7 +12,7 @@ const (
 	//TODO: change capacity depending on max X and max Y
 	MaxIntToBytesLength  = 4
 	MaxBytesToSendLength = 1000
-	MaxPlayerBytesLength = 4 + MaxIntToBytesLength*3
+	MaxPlayerBytesLength = 2 + MaxIntToBytesLength*3
 
 	MovementByte = byte('M')
 	PlayerByte   = byte('P')

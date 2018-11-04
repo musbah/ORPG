@@ -14,7 +14,6 @@ import (
 )
 
 type event struct {
-	streamID uint32
 	keyPress []byte
 	player   *player
 }
@@ -58,13 +57,10 @@ func mainGameLoop() {
 	//20 ticks per second
 	tick := time.Tick(50 * time.Millisecond)
 
-	for {
-		select {
-		case <-tick:
-			for index := range gameMaps {
-				maxProcessRoutines <- 1
-				go processEvents(index, maxProcessRoutines)
-			}
+	for range tick {
+		for index := range gameMaps {
+			maxProcessRoutines <- 1
+			go processEvents(index, maxProcessRoutines)
 		}
 	}
 
@@ -125,8 +121,12 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 		for i, stream := range gameMaps[mapIndex].streams {
 
 			//TODO: find a better way to set a deadline when someone disconnects
-			stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
-			_, err := stream.Write(bytesToSend)
+			err := stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
+			if err != nil {
+				log.Errorf("could not set write deadline, %s", err)
+			}
+
+			_, err = stream.Write(bytesToSend)
 			if err != nil {
 				log.Errorf("could not write to player's stream %s", err)
 				gameMaps[mapIndex].streams = deleteFromStream(gameMaps[mapIndex].streams, i)
@@ -149,20 +149,8 @@ func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uin
 	//and the later bytes contain the number of x and y
 	bytes[baseIndex] = common.MovementByte
 
-	bytes[baseIndex+1] = 1
-	if currentX < 0 {
-		bytes[baseIndex+1] = 0
-		nextX = -nextX
-	}
-
-	bytes[baseIndex+2] = 1
-	if currentY < 0 {
-		bytes[baseIndex+2] = 0
-		nextY = -nextY
-	}
-
 	//index to start adding numbers from
-	baseIndex = baseIndex + 3
+	baseIndex = baseIndex + 1
 	return addPositionToBytes(baseIndex, bytes, nextX, nextY)
 }
 

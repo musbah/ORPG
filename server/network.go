@@ -1,8 +1,8 @@
 package main
 
 import (
+	"io"
 	"musbah/multiplayer/common"
-	"net"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -16,7 +16,7 @@ func startListening(port string) {
 		log.Errorf("could not listen for packets, %s", err)
 		return
 	}
-	defer listener.Close()
+	defer close(listener)
 
 	log.Debugf("connection addr %s", listener.Addr())
 
@@ -27,21 +27,21 @@ func startListening(port string) {
 			log.Errorf("could not accept connection, %s", err)
 			return
 		}
-		defer connection.Close()
+		defer close(connection)
 
 		log.Debug("accepted new connection")
 		go initializeSmuxSession(connection)
 	}
 }
 
-func initializeSmuxSession(connection net.Conn) {
+func initializeSmuxSession(connection io.ReadWriteCloser) {
 
 	session, err := smux.Server(connection, nil)
 	if err != nil {
 		log.Errorf("could not create a connection, %s", err)
 		return
 	}
-	defer session.Close()
+	defer close(session)
 
 	player := loadPlayer()
 	for {
@@ -77,7 +77,8 @@ func handleStream(stream *smux.Stream, player *player) {
 		_, err := stream.Read(buffer)
 		if err != nil {
 			log.Errorf("could not read stream, %s", err)
-			stream.Close()
+			close(stream)
+			return
 		}
 
 		//Used to limit key event interval
@@ -99,4 +100,11 @@ func handleStream(stream *smux.Stream, player *player) {
 		gameMaps[player.mapIndex].eventQueueMutex.Unlock()
 	}
 
+}
+
+func close(c io.Closer) {
+	err := c.Close()
+	if err != nil {
+		log.Error(err)
+	}
 }

@@ -287,18 +287,10 @@ func loadPicture(path string) (pixel.Picture, error) {
 }
 
 func getMovementPositionFromBytes(baseIndex int, bytes []byte) (int, int) {
-	tempX := bytes[baseIndex+2 : common.MaxIntToBytesLength+baseIndex+2]
-	tempY := bytes[common.MaxIntToBytesLength+baseIndex+2 : (common.MaxIntToBytesLength*2)+baseIndex+2]
+	tempX := bytes[baseIndex : common.MaxIntToBytesLength+baseIndex]
+	tempY := bytes[common.MaxIntToBytesLength+baseIndex : (common.MaxIntToBytesLength*2)+baseIndex]
 	newX := int(binary.LittleEndian.Uint32(tempX))
 	newY := int(binary.LittleEndian.Uint32(tempY))
-
-	if bytes[baseIndex] == 0 {
-		newX = -newX
-	}
-
-	if bytes[baseIndex+1] == 0 {
-		newY = -newY
-	}
 
 	return newX, newY
 }
