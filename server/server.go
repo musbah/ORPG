@@ -118,19 +118,23 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 
 		gameMaps[mapIndex].streamsMutex.Lock()
 
-		for i, stream := range gameMaps[mapIndex].streams {
+		for _, stream := range gameMaps[mapIndex].streams {
 
-			//TODO: find a better way to set a deadline when someone disconnects
-			err := stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
-			if err != nil {
-				log.Errorf("could not set write deadline, %s", err)
-			}
+			go func(stream *smux.Stream) {
 
-			_, err = stream.Write(bytesToSend)
-			if err != nil {
-				log.Errorf("could not write to player's stream %s", err)
-				gameMaps[mapIndex].streams = deleteFromStream(gameMaps[mapIndex].streams, i)
-			}
+				//TODO: find a better way to set a deadline when someone disconnects
+				err := stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
+				if err != nil {
+					log.Errorf("could not set write deadline, %s", err)
+				}
+
+				_, err = stream.Write(bytesToSend)
+				if err != nil {
+					log.Errorf("could not write to player's stream %s", err)
+					//TODO: remove this stream from the array since the player has most likely disconnected
+				}
+
+			}(stream)
 
 		}
 
@@ -177,5 +181,9 @@ func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
 func deleteFromStream(array []*smux.Stream, index int) []*smux.Stream {
 	//delete from array (overwrite value with last element's value)
 	array[index] = array[len(array)-1]
+
+	//this is needed for the gc (since the array contains pointers)
+	array[len(array)-1] = nil
+
 	return array[:len(array)-1]
 }
