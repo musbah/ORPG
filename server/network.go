@@ -56,7 +56,6 @@ func initializeSmuxSession(connection net.Conn) {
 			log.Errorf("could not accept stream, %s", err)
 			continue
 		}
-		defer stream.Close()
 
 		gameMaps[player.mapIndex].streamsMutex.Lock()
 		gameMaps[player.mapIndex].streams = append(gameMaps[player.mapIndex].streams, stream)
@@ -78,7 +77,7 @@ func handleStream(stream *smux.Stream, player *player) {
 		_, err := stream.Read(buffer)
 		if err != nil {
 			log.Errorf("could not read stream, %s", err)
-			return
+			stream.Close()
 		}
 
 		//Used to limit key event interval

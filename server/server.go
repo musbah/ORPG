@@ -41,6 +41,10 @@ func main() {
 
 	log.SetLevel(log.DebugLevel)
 
+	// go func() {
+	// 	log.Println(http.ListenAndServe("localhost:6060", nil))
+	// }()
+
 	go mainGameLoop()
 
 	port := ":29902"
@@ -51,17 +55,17 @@ func mainGameLoop() {
 
 	maxProcessRoutines := make(chan int, 10)
 
+	//20 ticks per second
+	tick := time.Tick(50 * time.Millisecond)
+
 	for {
-
-		//TODO: look into a weird bug that stops this loop mid run
-		//to reproduce it, connect with a client, walk around a bit, exit and connect with client again
-		for index := range gameMaps {
-			maxProcessRoutines <- 1
-			go processEvents(index, maxProcessRoutines)
+		select {
+		case <-tick:
+			for index := range gameMaps {
+				maxProcessRoutines <- 1
+				go processEvents(index, maxProcessRoutines)
+			}
 		}
-
-		//20 ticks per second
-		time.Sleep(50 * time.Millisecond)
 	}
 
 }
@@ -120,6 +124,8 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 
 		for i, stream := range gameMaps[mapIndex].streams {
 
+			//TODO: find a better way to set a deadline when someone disconnects
+			stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
 			_, err := stream.Write(bytesToSend)
 			if err != nil {
 				log.Errorf("could not write to player's stream %s", err)

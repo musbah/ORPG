@@ -16,7 +16,6 @@
             "cwd": "${workspaceRoot}/server",
             "env": {},
             "args": [],
-            "trace": "verbose",
             "showLog": true
         }
     ]
