@@ -123,21 +123,17 @@ func writeToClients(bytesToSend []byte, mapIndex int) {
 
 	for i := 0; i < len(gameMaps[mapIndex].streams); i++ {
 
-		if gameMaps[mapIndex].streams[i] != nil {
+		//TODO: find a better way to set a deadline when someone disconnects
+		err := gameMaps[mapIndex].streams[i].SetWriteDeadline(time.Now().Add(1 * time.Millisecond))
+		if err != nil {
+			log.Errorf("could not set write deadline, %s", err)
+		}
 
-			//TODO: find a better way to set a deadline when someone disconnects
-			err := gameMaps[mapIndex].streams[i].SetWriteDeadline(time.Now().Add(1 * time.Millisecond))
-			if err != nil {
-				log.Errorf("could not set write deadline, %s", err)
-			}
-
-			_, err = gameMaps[mapIndex].streams[i].Write(bytesToSend)
-			if err != nil {
-				log.Errorf("could not write to player's stream %s", err)
-				deleteFromStream(gameMaps[mapIndex].streams, i)
-				i--
-			}
-
+		_, err = gameMaps[mapIndex].streams[i].Write(bytesToSend)
+		if err != nil {
+			log.Errorf("could not write to player's stream %s", err)
+			gameMaps[mapIndex].streams = deleteFromStream(gameMaps[mapIndex].streams, i)
+			i--
 		}
 
 	}
