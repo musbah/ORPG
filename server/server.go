@@ -21,9 +21,14 @@ type event struct {
 type gameMap struct {
 	mutex           sync.Mutex
 	streamsMutex    sync.Mutex
-	streams         []*smux.Stream
+	streams         []*streamWrapper
 	eventQueueMutex sync.Mutex
 	eventQueue      []event
+}
+
+type streamWrapper struct {
+	stream      *smux.Stream
+	isConnected bool
 }
 
 var gameMaps = make([]gameMap, common.TotalGameMaps)
@@ -118,25 +123,35 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 
 		gameMaps[mapIndex].streamsMutex.Lock()
 
+		var wg sync.WaitGroup
+		wg.Add(len(gameMaps[mapIndex].streams))
+
 		for _, stream := range gameMaps[mapIndex].streams {
 
-			go func(stream *smux.Stream) {
+			go func(stream *streamWrapper) {
 
-				//TODO: find a better way to set a deadline when someone disconnects
-				err := stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
-				if err != nil {
-					log.Errorf("could not set write deadline, %s", err)
+				if stream.isConnected {
+					//TODO: find a better way to set a deadline when someone disconnects
+					err := stream.stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
+					if err != nil {
+						log.Errorf("could not set write deadline, %s", err)
+					}
+
+					_, err = stream.stream.Write(bytesToSend)
+					if err != nil {
+						log.Errorf("could not write to player's stream %s", err)
+						//TODO: create a periodic loop that gets rid of all the disconnected streams
+						stream.isConnected = false
+					}
 				}
 
-				_, err = stream.Write(bytesToSend)
-				if err != nil {
-					log.Errorf("could not write to player's stream %s", err)
-					//TODO: remove this stream from the array since the player has most likely disconnected
-				}
+				wg.Done()
 
 			}(stream)
 
 		}
+
+		wg.Wait()
 
 		gameMaps[mapIndex].streamsMutex.Unlock()
 	}
