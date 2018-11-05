@@ -134,7 +134,6 @@ func writeToClients(bytesToSend []byte, mapIndex int) {
 			_, err = gameMaps[mapIndex].streams[i].Write(bytesToSend)
 			if err != nil {
 				log.Errorf("could not write to player's stream %s", err)
-				//TODO: create a periodic loop that gets rid of all the disconnected streams
 				deleteFromStream(gameMaps[mapIndex].streams, i)
 				i--
 			}
