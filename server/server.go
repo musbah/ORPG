@@ -19,16 +19,10 @@ type event struct {
 }
 
 type gameMap struct {
-	mutex           sync.Mutex
 	streamsMutex    sync.Mutex
-	streams         []*streamWrapper
+	streams         []*smux.Stream
 	eventQueueMutex sync.Mutex
 	eventQueue      []event
-}
-
-type streamWrapper struct {
-	stream      *smux.Stream
-	isConnected bool
 }
 
 var gameMaps = make([]gameMap, common.TotalGameMaps)
@@ -73,92 +67,83 @@ func mainGameLoop() {
 
 func processEvents(mapIndex int, maxProcessRoutines chan int) {
 
-	gameMaps[mapIndex].mutex.Lock()
-
 	gameMaps[mapIndex].eventQueueMutex.Lock()
-	queue := gameMaps[mapIndex].eventQueue
+
+	//Not using len and capacity because I won't use append
+	//append is slower and it might eventually matter (server side at least)
+	bytesToSend := make([]byte, common.MaxBytesToSendLength)
+	bytesToSendIndex := 0
+	for _, event := range gameMaps[mapIndex].eventQueue {
+
+	breakKeyPress:
+		for _, keyPress := range event.keyPress {
+			switch keyPress {
+			case key.Up:
+				event.player.y += key.MoveY
+			case key.Down:
+				event.player.y -= key.MoveY
+			case key.Right:
+				event.player.x += key.MoveX
+			case key.Left:
+				event.player.x -= key.MoveX
+			case 0:
+				break breakKeyPress
+			default:
+
+			}
+		}
+
+		tempX := event.player.x
+		tempY := event.player.y
+
+		playerBytes := make([]byte, common.MaxPlayerBytesLength)
+		playerBytes[0] = common.PlayerByte
+		length := addIntToBytes(1, playerBytes, event.player.id)
+		length = addMovementBytes(length, playerBytes, event.player.x, event.player.y, tempX, tempY)
+
+		for i := bytesToSendIndex; i < length+bytesToSendIndex; i++ {
+			bytesToSend[i] = playerBytes[i-bytesToSendIndex]
+		}
+
+		bytesToSendIndex += length
+	}
+
 	gameMaps[mapIndex].eventQueue = nil
 	gameMaps[mapIndex].eventQueueMutex.Unlock()
 
-	if len(queue) > 0 {
-
-		//Not using len and capacity because I won't use append
-		//append is slower and it might eventually matter (server side at least)
-		bytesToSend := make([]byte, common.MaxBytesToSendLength)
-		bytesToSendIndex := 0
-		for _, event := range queue {
-
-		breakKeyPress:
-			for _, keyPress := range event.keyPress {
-				switch keyPress {
-				case key.Up:
-					event.player.y += key.MoveY
-				case key.Down:
-					event.player.y -= key.MoveY
-				case key.Right:
-					event.player.x += key.MoveX
-				case key.Left:
-					event.player.x -= key.MoveX
-				case 0:
-					break breakKeyPress
-				default:
-
-				}
-			}
-
-			tempX := event.player.x
-			tempY := event.player.y
-
-			playerBytes := make([]byte, common.MaxPlayerBytesLength)
-			playerBytes[0] = common.PlayerByte
-			length := addIntToBytes(1, playerBytes, event.player.id)
-			length = addMovementBytes(length, playerBytes, event.player.x, event.player.y, tempX, tempY)
-
-			for i := bytesToSendIndex; i < length+bytesToSendIndex; i++ {
-				bytesToSend[i] = playerBytes[i-bytesToSendIndex]
-			}
-
-			bytesToSendIndex += length
-		}
-
-		gameMaps[mapIndex].streamsMutex.Lock()
-
-		var wg sync.WaitGroup
-		wg.Add(len(gameMaps[mapIndex].streams))
-
-		for _, stream := range gameMaps[mapIndex].streams {
-
-			go func(stream *streamWrapper) {
-
-				if stream.isConnected {
-					//TODO: find a better way to set a deadline when someone disconnects
-					err := stream.stream.SetWriteDeadline(time.Now().Add(1 * time.Second))
-					if err != nil {
-						log.Errorf("could not set write deadline, %s", err)
-					}
-
-					_, err = stream.stream.Write(bytesToSend)
-					if err != nil {
-						log.Errorf("could not write to player's stream %s", err)
-						//TODO: create a periodic loop that gets rid of all the disconnected streams
-						stream.isConnected = false
-					}
-				}
-
-				wg.Done()
-
-			}(stream)
-
-		}
-
-		wg.Wait()
-
-		gameMaps[mapIndex].streamsMutex.Unlock()
+	if bytesToSendIndex != 0 {
+		writeToClients(bytesToSend, mapIndex)
 	}
 
-	gameMaps[mapIndex].mutex.Unlock()
-
 	<-maxProcessRoutines
+}
+
+func writeToClients(bytesToSend []byte, mapIndex int) {
+	gameMaps[mapIndex].streamsMutex.Lock()
+
+	for i := 0; i < len(gameMaps[mapIndex].streams); i++ {
+
+		if gameMaps[mapIndex].streams[i] != nil {
+
+			//TODO: find a better way to set a deadline when someone disconnects
+			err := gameMaps[mapIndex].streams[i].SetWriteDeadline(time.Now().Add(1 * time.Millisecond))
+			if err != nil {
+				log.Errorf("could not set write deadline, %s", err)
+			}
+
+			_, err = gameMaps[mapIndex].streams[i].Write(bytesToSend)
+			if err != nil {
+				log.Errorf("could not write to player's stream %s", err)
+				//TODO: create a periodic loop that gets rid of all the disconnected streams
+				deleteFromStream(gameMaps[mapIndex].streams, i)
+				i--
+			}
+
+		}
+
+	}
+
+	gameMaps[mapIndex].streamsMutex.Unlock()
 }
 
 func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) int {
