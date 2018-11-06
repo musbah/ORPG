@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"musbah/multiplayer/common"
 	key "musbah/multiplayer/common/keyboard"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -11,6 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/xtaci/smux"
 	"golang.org/x/sys/windows"
+
+	_ "net/http/pprof"
 )
 
 type event struct {
@@ -44,11 +47,13 @@ func main() {
 
 	log.SetLevel(log.DebugLevel)
 
-	// go func() {
-	// 	log.Println(http.ListenAndServe("localhost:6060", nil))
-	// }()
+	//TODO: remove later
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	go mainGameLoop()
+	go objectDeletionLoop()
 
 	port := ":29902"
 	startListening(port)
@@ -62,12 +67,23 @@ func mainGameLoop() {
 	tick := time.Tick(50 * time.Millisecond)
 
 	for range tick {
-		for index := range gameMaps {
+		for index := 0; index < common.TotalGameMaps; index++ {
 			maxProcessRoutines <- 1
 			go processEvents(index, maxProcessRoutines)
 		}
 	}
 
+}
+
+func objectDeletionLoop() {
+
+	tick := time.Tick(1 * time.Hour)
+
+	for range tick {
+		for index := 0; index < common.TotalGameMaps; index++ {
+			go deleteDisconnectedStreams(index)
+		}
+	}
 }
 
 func processEvents(mapIndex int, maxProcessRoutines chan int) {
@@ -143,7 +159,6 @@ func writeToClients(bytesToSend []byte, mapIndex int) {
 				_, err = wrapper.stream.Write(bytesToSend)
 				if err != nil {
 					log.Errorf("could not write to player's stream %s", err)
-					//TODO: create a periodic loop that eventually gets rid of the disconnected streams
 					wrapper.isConnected = false
 				}
 			}
@@ -191,7 +206,21 @@ func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
 	return length
 }
 
-func deleteFromStream(array []*smux.Stream, index int) []*smux.Stream {
+func deleteDisconnectedStreams(mapIndex int) {
+	gameMaps[mapIndex].streamsMutex.Lock()
+	for i := 0; i < len(gameMaps[mapIndex].streams); i++ {
+
+		if !gameMaps[mapIndex].streams[i].isConnected {
+			gameMaps[mapIndex].streams = deleteFromStream(gameMaps[mapIndex].streams, i)
+			i--
+		}
+
+	}
+
+	gameMaps[mapIndex].streamsMutex.Unlock()
+}
+
+func deleteFromStream(array []*streamWrapper, index int) []*streamWrapper {
 	//delete from array (overwrite value with last element's value)
 	array[index] = array[len(array)-1]
 
