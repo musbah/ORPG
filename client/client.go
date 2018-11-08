@@ -188,7 +188,7 @@ func sendKeyPress(stream *smux.Stream, pressedKeys []byte) {
 	// log.Infof("send keys %v", pressedKeys)
 	_, err := stream.Write(pressedKeys)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("could not send key press, %s", err)
 		return
 	}
 }
