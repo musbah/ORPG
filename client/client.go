@@ -8,6 +8,7 @@ import (
 	_ "image/png" //TODO: for tiled later
 	"strconv"
 	"strings"
+	"sync"
 
 	// "github.com/lafriks/go-tiled"
 	"musbah/multiplayer/common"
@@ -25,7 +26,6 @@ import (
 )
 
 var window *pixelgl.Window
-var sprite *pixel.Sprite
 var batch *pixel.Batch
 
 //TODO: get local ID from the server on login
@@ -37,7 +37,8 @@ type player struct {
 	y      int
 }
 
-var players = make(map[uint32]player)
+var playersMutex sync.RWMutex
+var players = make(map[uint32]*player)
 
 var spriteFrames []pixel.Rect
 var spriteSheet pixel.Picture
@@ -84,7 +85,7 @@ func run() {
 		}
 	}
 
-	sprite = pixel.NewSprite(spriteSheet, spriteFrames[1])
+	PlayerSprite := pixel.NewSprite(spriteSheet, spriteFrames[1])
 
 	connection, err := kcp.Dial("localhost:29902")
 	if err != nil {
@@ -113,9 +114,8 @@ func run() {
 	second := time.Tick(time.Second)
 	keyTick := time.Tick(common.KeyTick + 10*time.Millisecond)
 
-	x := 0
-	y := 0
-	// last := time.Now()
+	localPlayer := &player{sprite: PlayerSprite, x: 0, y: 0}
+	players[localPlayerID] = localPlayer
 
 	receiveResponseChan := make(chan bool, 1)
 	receiveResponseChan <- true
@@ -133,22 +133,22 @@ func run() {
 		select {
 		case <-keyTick:
 			if window.Pressed(pixelgl.KeyUp) {
-				y += key.MoveY
+				localPlayer.y += key.MoveY
 				pressedKeys = append(pressedKeys, key.Up)
 			}
 
 			if window.Pressed(pixelgl.KeyDown) {
-				y -= key.MoveY
+				localPlayer.y -= key.MoveY
 				pressedKeys = append(pressedKeys, key.Down)
 			}
 
 			if window.Pressed(pixelgl.KeyLeft) {
-				x -= key.MoveX
+				localPlayer.x -= key.MoveX
 				pressedKeys = append(pressedKeys, key.Left)
 			}
 
 			if window.Pressed(pixelgl.KeyRight) {
-				x += key.MoveX
+				localPlayer.x += key.MoveX
 				pressedKeys = append(pressedKeys, key.Right)
 			}
 		default:
@@ -165,11 +165,11 @@ func run() {
 		select {
 		case <-receiveResponseChan:
 			receiveResponseChan = make(chan bool, 1)
-			go receiveResponse(stream, &x, &y, receiveResponseChan)
+			go receiveResponse(stream, receiveResponseChan)
 		default:
 		}
 
-		drawPlayerPosition(x, y)
+		drawPlayerPosition()
 
 		frames++
 		select {
@@ -193,7 +193,7 @@ func sendKeyPress(stream *smux.Stream, pressedKeys []byte) {
 	}
 }
 
-func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan chan bool) {
+func receiveResponse(stream *smux.Stream, receiveResponseChan chan bool) {
 	response := make([]byte, common.MaxBytesToSendLength)
 	_, err := stream.Read(response)
 	if err != nil {
@@ -208,26 +208,17 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 
 			newX, newY := getMovementPositionFromBytes(common.MaxIntToBytesLength+i+2, response)
 
-			if playerID == localPlayerID {
-
-				log.Debugf("response x is %d, y is %d", newX, newY)
-				log.Debugf("x is %d and y is %d", *x, *y)
-				if *x != newX || *y != newY {
-					log.Debug("wrong player position, recalibrating")
-					*x = newX
-					*y = newY
-				}
-
+			log.Debugf("player id is %d, x is %d , y is %d", playerID, newX, newY)
+			playersMutex.Lock()
+			playerValue, ok := players[playerID]
+			if ok {
+				playerValue.x = newX
+				playerValue.y = newY
+				players[playerID] = playerValue
 			} else {
-				playerValue, ok := players[playerID]
-				if ok {
-					playerValue.x = newX
-					playerValue.y = newY
-					players[playerID] = playerValue
-				} else {
-					players[playerID] = player{x: newX, y: newY, sprite: pixel.NewSprite(spriteSheet, spriteFrames[1])}
-				}
+				players[playerID] = &player{x: newX, y: newY, sprite: pixel.NewSprite(spriteSheet, spriteFrames[1])}
 			}
+			playersMutex.Unlock()
 		}
 
 	}
@@ -235,20 +226,17 @@ func receiveResponse(stream *smux.Stream, x *int, y *int, receiveResponseChan ch
 	receiveResponseChan <- true
 }
 
-func drawPlayerPosition(x int, y int) {
-
-	//TODO: combine current player and other players
-	position := pixel.Vec{X: float64(x), Y: float64(y)}
-	matrix := pixel.IM.Moved(position)
+func drawPlayerPosition() {
 
 	batch.Clear()
-	sprite.Draw(batch, matrix)
 
+	playersMutex.RLock()
 	for _, player := range players {
 		position := pixel.Vec{X: float64(player.x), Y: float64(player.y)}
 		matrix := pixel.IM.Moved(position)
 		player.sprite.Draw(batch, matrix)
 	}
+	playersMutex.RUnlock()
 
 	batch.Draw(window)
 
