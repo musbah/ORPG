@@ -22,7 +22,6 @@ import (
 	kcp "github.com/xtaci/kcp-go"
 	"github.com/xtaci/smux"
 	"golang.org/x/image/colornames"
-	"golang.org/x/sys/windows"
 )
 
 var window *pixelgl.Window
@@ -244,15 +243,6 @@ func drawPlayerPosition() {
 }
 
 func main() {
-
-	//this handles terminal colors on windows
-	var originalMode uint32
-	stdout := windows.Handle(os.Stdout.Fd())
-
-	windows.GetConsoleMode(stdout, &originalMode)
-	windows.SetConsoleMode(stdout, originalMode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-	defer windows.SetConsoleMode(stdout, originalMode)
-
 	log.SetLevel(log.DebugLevel)
 
 	pixelgl.Run(run)

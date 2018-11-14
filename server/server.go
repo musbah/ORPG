@@ -5,13 +5,11 @@ import (
 	"musbah/multiplayer/common"
 	key "musbah/multiplayer/common/keyboard"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xtaci/smux"
-	"golang.org/x/sys/windows"
 
 	_ "net/http/pprof"
 )
@@ -36,14 +34,6 @@ type playerStream struct {
 var gameMaps = make([]gameMap, common.TotalGameMaps)
 
 func main() {
-
-	//this handles terminal colors on windows
-	var originalMode uint32
-	stdout := windows.Handle(os.Stdout.Fd())
-
-	windows.GetConsoleMode(stdout, &originalMode)
-	windows.SetConsoleMode(stdout, originalMode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-	defer windows.SetConsoleMode(stdout, originalMode)
 
 	log.SetLevel(log.DebugLevel)
 
