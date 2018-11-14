@@ -22,13 +22,13 @@ type event struct {
 }
 
 type gameMap struct {
-	streamsMutex    sync.Mutex
-	streams         []*streamWrapper
-	eventQueueMutex sync.Mutex
-	eventQueue      []event
+	playerStreamsMutex sync.Mutex
+	playerStreams      []*playerStream
+	eventQueueMutex    sync.Mutex
+	eventQueue         []event
 }
 
-type streamWrapper struct {
+type playerStream struct {
 	stream      *smux.Stream
 	isConnected bool
 }
@@ -140,26 +140,26 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 }
 
 func writeToClients(bytesToSend []byte, mapIndex int) {
-	gameMaps[mapIndex].streamsMutex.Lock()
+	gameMaps[mapIndex].playerStreamsMutex.Lock()
 
 	var wg sync.WaitGroup
-	wg.Add(len(gameMaps[mapIndex].streams))
+	wg.Add(len(gameMaps[mapIndex].playerStreams))
 
-	for _, stream := range gameMaps[mapIndex].streams {
+	for _, stream := range gameMaps[mapIndex].playerStreams {
 
-		go func(wrapper *streamWrapper) {
+		go func(player *playerStream) {
 
-			if wrapper.isConnected {
+			if player.isConnected {
 				//TODO: find a better way to set a deadline when someone disconnects
-				err := wrapper.stream.SetWriteDeadline(time.Now().Add(3 * time.Millisecond))
+				err := player.stream.SetWriteDeadline(time.Now().Add(3 * time.Millisecond))
 				if err != nil {
 					log.Errorf("could not set write deadline, %s", err)
 				}
 
-				_, err = wrapper.stream.Write(bytesToSend)
+				_, err = player.stream.Write(bytesToSend)
 				if err != nil {
 					log.Errorf("could not write to player's stream %s", err)
-					wrapper.isConnected = false
+					player.isConnected = false
 				}
 			}
 
@@ -171,7 +171,7 @@ func writeToClients(bytesToSend []byte, mapIndex int) {
 
 	wg.Wait()
 
-	gameMaps[mapIndex].streamsMutex.Unlock()
+	gameMaps[mapIndex].playerStreamsMutex.Unlock()
 }
 
 func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) int {
@@ -207,20 +207,20 @@ func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
 }
 
 func deleteDisconnectedStreams(mapIndex int) {
-	gameMaps[mapIndex].streamsMutex.Lock()
-	for i := 0; i < len(gameMaps[mapIndex].streams); i++ {
+	gameMaps[mapIndex].playerStreamsMutex.Lock()
+	for i := 0; i < len(gameMaps[mapIndex].playerStreams); i++ {
 
-		if !gameMaps[mapIndex].streams[i].isConnected {
-			gameMaps[mapIndex].streams = deleteFromStream(gameMaps[mapIndex].streams, i)
+		if !gameMaps[mapIndex].playerStreams[i].isConnected {
+			gameMaps[mapIndex].playerStreams = deleteFromStream(gameMaps[mapIndex].playerStreams, i)
 			i--
 		}
 
 	}
 
-	gameMaps[mapIndex].streamsMutex.Unlock()
+	gameMaps[mapIndex].playerStreamsMutex.Unlock()
 }
 
-func deleteFromStream(array []*streamWrapper, index int) []*streamWrapper {
+func deleteFromStream(array []*playerStream, index int) []*playerStream {
 	//delete from array (overwrite value with last element's value)
 	array[index] = array[len(array)-1]
 

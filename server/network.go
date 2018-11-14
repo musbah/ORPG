@@ -57,9 +57,9 @@ func initializeSmuxSession(connection io.ReadWriteCloser) {
 			continue
 		}
 
-		gameMaps[player.mapIndex].streamsMutex.Lock()
-		gameMaps[player.mapIndex].streams = append(gameMaps[player.mapIndex].streams, &streamWrapper{stream: stream, isConnected: true})
-		gameMaps[player.mapIndex].streamsMutex.Unlock()
+		gameMaps[player.mapIndex].playerStreamsMutex.Lock()
+		gameMaps[player.mapIndex].playerStreams = append(gameMaps[player.mapIndex].playerStreams, &playerStream{stream: stream, isConnected: true})
+		gameMaps[player.mapIndex].playerStreamsMutex.Unlock()
 
 		go handleStream(stream, player)
 
