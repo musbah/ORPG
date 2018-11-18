@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	// "github.com/lafriks/go-tiled"
-	"musbah/multiplayer/common"
-	key "musbah/multiplayer/common/keyboard"
+	"musbah/ORPG/common"
+	key "musbah/ORPG/common/keyboard"
 	"os"
 	"time"
 
