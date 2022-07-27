@@ -4,12 +4,12 @@ import (
 	"encoding/binary"
 	"musbah/ORPG/common"
 	key "musbah/ORPG/common/keyboard"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/xtaci/smux"
 
 	_ "net/http/pprof"
 )
@@ -20,14 +20,14 @@ type event struct {
 }
 
 type gameMap struct {
-	playerStreamsMutex sync.Mutex
-	playerStreams      []*playerStream
-	eventQueueMutex    sync.Mutex
-	eventQueue         []event
+	playerConnectionsMutex sync.Mutex
+	playerConnections      []*playerConnection
+	eventQueueMutex        sync.Mutex
+	eventQueue             []event
 }
 
-type playerStream struct {
-	stream      *smux.Stream
+type playerConnection struct {
+	connection  net.Conn
 	isConnected bool
 }
 
@@ -71,7 +71,7 @@ func objectDeletionLoop() {
 
 	for range tick {
 		for index := 0; index < common.TotalGameMaps; index++ {
-			go deleteDisconnectedStreams(index)
+			go deleteDisconnectedConnections(index)
 		}
 	}
 }
@@ -130,38 +130,38 @@ func processEvents(mapIndex int, maxProcessRoutines chan int) {
 }
 
 func writeToClients(bytesToSend []byte, mapIndex int) {
-	gameMaps[mapIndex].playerStreamsMutex.Lock()
+	gameMaps[mapIndex].playerConnectionsMutex.Lock()
 
 	var wg sync.WaitGroup
-	wg.Add(len(gameMaps[mapIndex].playerStreams))
+	wg.Add(len(gameMaps[mapIndex].playerConnections))
 
-	for _, stream := range gameMaps[mapIndex].playerStreams {
+	for _, connection := range gameMaps[mapIndex].playerConnections {
 
-		go func(player *playerStream) {
+		go func(player *playerConnection) {
 
 			if player.isConnected {
 				//TODO: find a better way to set a deadline when someone disconnects
-				err := player.stream.SetWriteDeadline(time.Now().Add(3 * time.Millisecond))
+				err := player.connection.SetWriteDeadline(time.Now().Add(3 * time.Millisecond))
 				if err != nil {
 					log.Errorf("could not set write deadline, %s", err)
 				}
 
-				_, err = player.stream.Write(bytesToSend)
+				_, err = player.connection.Write(bytesToSend)
 				if err != nil {
-					log.Errorf("could not write to player's stream %s", err)
+					log.Errorf("could not write to player's connection %s", err)
 					player.isConnected = false
 				}
 			}
 
 			wg.Done()
 
-		}(stream)
+		}(connection)
 
 	}
 
 	wg.Wait()
 
-	gameMaps[mapIndex].playerStreamsMutex.Unlock()
+	gameMaps[mapIndex].playerConnectionsMutex.Unlock()
 }
 
 func addMovementBytes(baseIndex int, bytes []byte, currentX uint32, currentY uint32, nextX uint32, nextY uint32) int {
@@ -196,21 +196,21 @@ func addIntToBytes(baseIndex int, bytes []byte, numberToAppend uint32) int {
 	return length
 }
 
-func deleteDisconnectedStreams(mapIndex int) {
-	gameMaps[mapIndex].playerStreamsMutex.Lock()
-	for i := 0; i < len(gameMaps[mapIndex].playerStreams); i++ {
+func deleteDisconnectedConnections(mapIndex int) {
+	gameMaps[mapIndex].playerConnectionsMutex.Lock()
+	for i := 0; i < len(gameMaps[mapIndex].playerConnections); i++ {
 
-		if !gameMaps[mapIndex].playerStreams[i].isConnected {
-			gameMaps[mapIndex].playerStreams = deleteFromStream(gameMaps[mapIndex].playerStreams, i)
+		if !gameMaps[mapIndex].playerConnections[i].isConnected {
+			gameMaps[mapIndex].playerConnections = deleteFromConnections(gameMaps[mapIndex].playerConnections, i)
 			i--
 		}
 
 	}
 
-	gameMaps[mapIndex].playerStreamsMutex.Unlock()
+	gameMaps[mapIndex].playerConnectionsMutex.Unlock()
 }
 
-func deleteFromStream(array []*playerStream, index int) []*playerStream {
+func deleteFromConnections(array []*playerConnection, index int) []*playerConnection {
 	//delete from array (overwrite value with last element's value)
 	array[index] = array[len(array)-1]
 

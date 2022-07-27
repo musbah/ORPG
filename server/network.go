@@ -3,15 +3,15 @@ package main
 import (
 	"io"
 	"musbah/ORPG/common"
+	"net"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	kcp "github.com/xtaci/kcp-go"
-	"github.com/xtaci/smux"
 )
 
 func startListening(port string) {
-	listener, err := kcp.Listen(port)
+
+	listener, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Errorf("could not listen for packets, %s", err)
 		return
@@ -30,54 +30,25 @@ func startListening(port string) {
 		defer close(connection)
 
 		log.Debug("accepted new connection")
-		go initializeSmuxSession(connection)
+		go handleConnection(connection)
 	}
 }
 
-func initializeSmuxSession(connection io.ReadWriteCloser) {
+func handleConnection(connection net.Conn) {
 
-	session, err := smux.Server(connection, nil)
-	if err != nil {
-		log.Errorf("could not create a connection, %s", err)
-		return
-	}
-	defer close(session)
-
+	defer close(connection)
+	var lastEvent time.Time
 	player := loadPlayer()
 	for {
-		stream, err := session.AcceptStream()
-		if err != nil {
-
-			if session.IsClosed() {
-				log.Printf("session closed")
-				return
-			}
-
-			log.Errorf("could not accept stream, %s", err)
-			continue
-		}
-
-		gameMaps[player.mapIndex].playerStreamsMutex.Lock()
-		gameMaps[player.mapIndex].playerStreams = append(gameMaps[player.mapIndex].playerStreams, &playerStream{stream: stream, isConnected: true})
-		gameMaps[player.mapIndex].playerStreamsMutex.Unlock()
-
-		go handleStream(stream, player)
-
-	}
-
-}
-
-func handleStream(stream *smux.Stream, player *player) {
-
-	var lastEvent time.Time
-	for {
+		gameMaps[player.mapIndex].playerConnectionsMutex.Lock()
+		gameMaps[player.mapIndex].playerConnections = append(gameMaps[player.mapIndex].playerConnections, &playerConnection{connection: connection, isConnected: true})
+		gameMaps[player.mapIndex].playerConnectionsMutex.Unlock()
 
 		buffer := make([]byte, 10)
 
-		_, err := stream.Read(buffer)
+		_, err := io.ReadFull(connection, buffer)
 		if err != nil {
-			log.Errorf("could not read stream, %s", err)
-			close(stream)
+			log.Errorf("could not read connection, %s", err)
 			return
 		}
 
@@ -89,7 +60,7 @@ func handleStream(stream *smux.Stream, player *player) {
 
 		lastEvent = time.Now()
 
-		// log.Debugf("read %s", buffer)
+		log.Debugf("read %s", buffer)
 		event := event{
 			keyPress: buffer,
 			player:   player,

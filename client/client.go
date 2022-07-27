@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/png" //TODO: for tiled later
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,8 +20,6 @@ import (
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 	log "github.com/sirupsen/logrus"
-	kcp "github.com/xtaci/kcp-go"
-	"github.com/xtaci/smux"
 	"golang.org/x/image/colornames"
 )
 
@@ -86,28 +85,14 @@ func run() {
 
 	PlayerSprite := pixel.NewSprite(spriteSheet, spriteFrames[1])
 
-	connection, err := kcp.Dial("localhost:29902")
+	connection, err := net.Dial("tcp", "localhost:29902")
 	if err != nil {
 		log.Error(err)
 		return
 	}
 	defer connection.Close()
 
-	session, err := smux.Client(connection, nil)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	defer session.Close()
-
 	log.Debugf("connection from %s to %s", connection.LocalAddr(), connection.RemoteAddr())
-
-	//TODO: open more streams for different uses
-	stream, err := session.OpenStream()
-	if err != nil {
-		log.Error(err)
-		return
-	}
 
 	frames := 0
 	second := time.Tick(time.Second)
@@ -157,14 +142,14 @@ func run() {
 		// tilesPerSec := speed / tileSize * delta
 
 		if len(pressedKeys) != 0 {
-			go sendKeyPress(stream, pressedKeys)
+			go sendKeyPress(connection, pressedKeys)
 		}
 
 		//Used so that only 1 receiveResponse goroutine is created
 		select {
 		case <-receiveResponseChan:
 			receiveResponseChan = make(chan bool, 1)
-			go receiveResponse(stream, receiveResponseChan)
+			go receiveResponse(connection, receiveResponseChan)
 		default:
 		}
 
@@ -182,19 +167,19 @@ func run() {
 
 }
 
-func sendKeyPress(stream *smux.Stream, pressedKeys []byte) {
+func sendKeyPress(connection net.Conn, pressedKeys []byte) {
 
 	// log.Infof("send keys %v", pressedKeys)
-	_, err := stream.Write(pressedKeys)
+	_, err := connection.Write(pressedKeys)
 	if err != nil {
 		log.Errorf("could not send key press, %s", err)
 		return
 	}
 }
 
-func receiveResponse(stream *smux.Stream, receiveResponseChan chan bool) {
+func receiveResponse(connection net.Conn, receiveResponseChan chan bool) {
 	response := make([]byte, common.MaxBytesToSendLength)
-	_, err := stream.Read(response)
+	_, err := connection.Read(response)
 	if err != nil {
 		log.Error(err)
 		return
