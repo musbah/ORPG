@@ -44,10 +44,14 @@ func handleConnection(connection net.Conn) {
 		gameMaps[player.mapIndex].playerConnections = append(gameMaps[player.mapIndex].playerConnections, &playerConnection{connection: connection, isConnected: true})
 		gameMaps[player.mapIndex].playerConnectionsMutex.Unlock()
 
-		buffer := make([]byte, 10)
+		buffer := make([]byte, 1)
 
 		_, err := io.ReadFull(connection, buffer)
 		if err != nil {
+			if err == io.ErrUnexpectedEOF {
+				log.Infof("Connection EOF")
+				return
+			}
 			log.Errorf("could not read connection, %s", err)
 			return
 		}
