@@ -12,7 +12,7 @@ import (
 	key "musbah/ORPG/common/keyboard"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -50,8 +50,12 @@ var players = make(map[uint32]*player)
 var connection net.Conn
 var spriteSheet *ebiten.Image
 
+var log *zap.SugaredLogger
+
 func main() {
-	log.SetLevel(log.DebugLevel)
+	logger, _ := zap.NewProduction()
+	defer logger.Sync() // flushes buffer, if any
+	log = logger.Sugar()
 
 	//TODO: temporary way to pick a playerID, will work differently later on (this has to match serverID)
 	// reader := bufio.NewReader(os.Stdin)

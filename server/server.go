@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	_ "net/http/pprof"
+
+	"go.uber.org/zap"
 )
 
 type event struct {
@@ -33,13 +33,16 @@ type playerConnection struct {
 
 var gameMaps = make([]gameMap, common.TotalGameMaps)
 
-func main() {
+var log *zap.SugaredLogger
 
-	log.SetLevel(log.DebugLevel)
+func main() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync() // flushes buffer, if any
+	log = logger.Sugar()
 
 	//TODO: remove later
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		log.Info(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	go mainGameLoop()

@@ -5,8 +5,6 @@ import (
 	"musbah/ORPG/common"
 	"net"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func startListening(port string) {
