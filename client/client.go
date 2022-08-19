@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -53,7 +55,14 @@ var spriteSheet *ebiten.Image
 var log *zap.SugaredLogger
 
 func main() {
-	logger, _ := zap.NewProduction()
+	//TODO: create a better system to move between dev and production config
+	config := zap.NewDevelopmentConfig()
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	logger, err := config.Build()
+	if err != nil {
+		fmt.Printf("can't initialize zap logger: %v", err)
+		return
+	}
 	defer logger.Sync() // flushes buffer, if any
 	log = logger.Sugar()
 

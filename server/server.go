@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"musbah/ORPG/common"
 	key "musbah/ORPG/common/keyboard"
 	"net"
@@ -12,6 +13,7 @@ import (
 	_ "net/http/pprof"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type event struct {
@@ -36,7 +38,14 @@ var gameMaps = make([]gameMap, common.TotalGameMaps)
 var log *zap.SugaredLogger
 
 func main() {
-	logger, _ := zap.NewProduction()
+	//TODO: create a better system to move between dev and production config
+	config := zap.NewDevelopmentConfig()
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	logger, err := config.Build()
+	if err != nil {
+		fmt.Printf("can't initialize zap logger: %v", err)
+		return
+	}
 	defer logger.Sync() // flushes buffer, if any
 	log = logger.Sugar()
 
